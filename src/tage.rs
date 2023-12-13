@@ -9,6 +9,14 @@ use crate::predictor::*;
 use std::ops::RangeInclusive;
 use rand::prelude;
 
+/// Identifies a particular TAGE component.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TAGEProvider { 
+    /// The base component
+    Base, 
+    /// A tagged component
+    Tagged(usize), 
+}
 
 /// The "TAgged GEometric history length" predictor. 
 ///
@@ -18,9 +26,9 @@ use rand::prelude;
 pub struct TAGEPredictor { 
     /// Base component
     pub base: TAGEBaseComponent,
+
     /// Tagged components
     pub comp: Vec<TAGEComponent>,
-
 }
 impl TAGEPredictor {
     /// Create a new predictor with some base component. The user is expected 
@@ -35,9 +43,10 @@ impl TAGEPredictor {
     pub fn add_component(&mut self, component: TAGEComponent) {
         self.comp.push(component);
 
-        // Automatically re-sort the list of components by history length. 
-        // The component with the longest history length is always the 
-        // first entry in the list. 
+        // When adding a new component, automatically re-sort the list of 
+        // components by history length. This way, the component with the 
+        // longest history length is always guaranteed to be the first entry 
+        // in the list. 
         self.comp.sort_by(|x, y| {
             let x_history_len = x.ghr_range.end() - x.ghr_range.start();
             let y_history_len = y.ghr_range.end() - y.ghr_range.start();
@@ -50,55 +59,59 @@ impl TAGEPredictor {
         self.comp.len()
     }
 
-    pub fn predict(&self, pc: usize) -> (TAGEProvider, Outcome) { 
-        for (idx, component) in self.comp.iter().enumerate() {
-            if let Some(prediction) = component.try_predict(pc) {
-                return (TAGEProvider::Tagged(idx), prediction);
-            }
+    /// Index into all components and return references to all entries that 
+    /// correspond to the given program counter value.
+    pub fn get_all_entries(&self, pc: usize) 
+        -> (&SaturatingCounter, Vec<&TAGEEntry>) 
+    {
+        let mut entries = Vec::new();
+        for component in self.comp.iter() {
+            entries.push(component.get_entry(pc));
         }
-        (TAGEProvider::Base, self.base.predict(pc))
-    }
-}
-
-enum TAGEProvider { Base, Tagged(usize), }
-
-impl TAGEPredictor {
-
-
-    /// Find the component that will provide a prediction for the given 
-    /// program counter value. 
-    fn find_provider(&self, pc: usize) -> TAGEProvider {
-        for (idx, component) in self.comp.iter().enumerate() {
-            if component.lookup(pc).is_some() { 
-                return TAGEProvider::Tagged(idx);
-            }
-        }
-        TAGEProvider::Base
+        (self.base.get_entry(pc), entries)
     }
 
-    /// Update the state of all folded history registers.
-    pub fn update_history(&mut self, ghr: &GlobalHistoryRegister) {
-        for component in self.comp.iter_mut() {
-            component.update_history(ghr);
+    pub fn get_all_tags(&self, pc: usize) -> Vec<usize> { 
+        let mut tags = Vec::new();
+        for component in self.comp.iter() {
+            tags.push(0);
         }
+        tags
+    }
+
+    pub fn predict(&self, pc: usize) -> (TAGEProvider, Outcome) {
+        // Index into all tables
+        let (base, tagged) = self.get_all_entries(pc);
+
+        let tags = self.get_all_tags(pc);
+        let hit = tagged.iter().enumerate().zip(tags.iter()).find(
+            |((idx, entry), tag)| { 
+                if let Some(v) = entry.tag { v == **tag } else { false }
+            }
+        );
+
+        if let Some(((idx, entry), tag)) = hit { 
+            return (TAGEProvider::Tagged(idx), entry.predict());
+        }
+        (TAGEProvider::Base, base.predict())
     }
 
     pub fn update(&mut self, 
-        ghr: &GlobalHistoryRegister, 
         pc: usize, 
+        provider: TAGEProvider, 
         outcome: Outcome
     )
     {
-        match self.find_provider(pc) {
-            // A hit occured in the some tagged component 'idx'
-            TAGEProvider::Tagged(idx) => {
-            },
-            // We missed in all tagged components
+        match provider { 
             TAGEProvider::Base => {
             },
+            TAGEProvider::Tagged(idx) => { 
+            },
         }
-        self.update_history(&ghr);
     }
 
 }
+
+
+
 

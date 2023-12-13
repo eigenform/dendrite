@@ -4,6 +4,15 @@ use std::ops::{ Add, Sub, RangeInclusive };
 /// A branch outcome. 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Outcome { N, T }
+impl std::ops::Not for Outcome { 
+    type Output = Self;
+    fn not(self) -> Self { 
+        match self { 
+            Self::N => Self::T,
+            Self::T => Self::N,
+        }
+    }
+}
 impl From<bool> for Outcome {
     fn from(x: bool) -> Self { 
         match x { 
@@ -17,55 +26,57 @@ impl From<bool> for Outcome {
 /// An 'n'-bit saturating counter used to follow the behavior of a branch. 
 #[derive(Clone, Copy, Debug)]
 pub struct SaturatingCounter {
-    lo: i8, 
-    hi: i8,
+    max_t_state: u8,
+    max_n_state: u8,
     default: Outcome,
-    init: i8,
-    state: i8,
+    state: Outcome,
+    ctr: u8,
 }
 impl SaturatingCounter {
-    pub fn new(range: RangeInclusive<i8>, init: i8, default: Outcome) -> Self { 
-        assert!(range.start().is_negative() && range.end().is_positive());
+    pub fn new(max_t_state: u8, max_n_state: u8, default: Outcome)
+        -> Self 
+    {
         Self { 
-            lo: *range.start(),
-            hi: *range.end(),
-            init,
-            state: init,
+            max_t_state,
+            max_n_state,
             default,
+            state: default,
+            ctr: 0,
         }
     }
 
-    fn clamp(&self, x: i8) -> i8 { x.clamp(self.lo, self.hi) }
+    pub fn strengthen(&mut self) {
+        let lim = match self.state { 
+            Outcome::T => self.max_t_state,
+            Outcome::N => self.max_n_state,
+        };
+        self.ctr = (self.ctr + 1).clamp(0, lim);
+    }
 
-    /// Increment the counter.
-    pub fn inc(&mut self) { self.state = self.clamp(self.state.add(1)); }
-
-    /// Decrement the counter.
-    pub fn dec(&mut self) { self.state = self.clamp(self.state.sub(1)); }
+    pub fn weaken(&mut self) {
+        if let Some(next) = self.ctr.checked_sub(1) { 
+            self.ctr = next;
+        } else { 
+            self.state = !self.state;
+        }
+    }
 
     /// Reset the counter.
-    pub fn reset(&mut self) { self.state = self.init; }
+    pub fn reset(&mut self) { 
+        self.state = self.default; 
+        self.ctr = 0;
+    }
 
     /// Return the current predicted direction.
-    pub fn predict(&self) -> Outcome {
-        if self.state == 0 {
-            self.default
-        } else { 
-            Outcome::from(self.state.is_positive())
-        }
-    }
+    pub fn predict(&self) -> Outcome { self.state }
 
     /// Update the state of the counter. 
     pub fn update(&mut self, outcome: Outcome) {
-        let current_prediction = self.predict();
-        let misprediction = outcome != current_prediction;
-        match outcome { 
-            Outcome::N => {
-                if misprediction { self.inc() } else { self.dec() }
-            },
-            Outcome::T => {
-                if misprediction { self.dec() } else { self.inc() }
-            },
+        let prediction = self.predict();
+        if outcome != prediction {
+            self.weaken();
+        } else { 
+            self.strengthen();
         }
     }
 }

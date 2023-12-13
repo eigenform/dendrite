@@ -9,26 +9,26 @@ fn main() {
 
     let get_base_pc = |x: usize| { x & 0xfff };
     let mut base_component = TAGEBaseComponent::new(
-        SaturatingCounter::new(-4..=4, 0, Outcome::N),
+        SaturatingCounter::new(2, 2, Outcome::N),
         64, get_base_pc
     );
 
     let foo = |x: usize| { x & 0xfff };
     let mut tage = TAGEPredictor::new(base_component);
     tage.add_component(TAGEComponent::new(
-        TAGEEntry::new(SaturatingCounter::new(-4..=4, 0, Outcome::N)), 64, 
+        TAGEEntry::new(SaturatingCounter::new(2, 2, Outcome::N)), 64, 
         0..=15, 12, foo
     ));
     tage.add_component(TAGEComponent::new(
-        TAGEEntry::new(SaturatingCounter::new(-4..=4, 0, Outcome::N)), 64, 
+        TAGEEntry::new(SaturatingCounter::new(2, 2, Outcome::N)), 64, 
         0..=31, 12, foo
     ));
     tage.add_component(TAGEComponent::new(
-        TAGEEntry::new(SaturatingCounter::new(-4..=4, 0, Outcome::N)), 64, 
+        TAGEEntry::new(SaturatingCounter::new(2, 2, Outcome::N)), 64, 
         0..=63, 12, foo
     ));
     tage.add_component(TAGEComponent::new(
-        TAGEEntry::new(SaturatingCounter::new(-4..=4, 0, Outcome::N)), 64, 
+        TAGEEntry::new(SaturatingCounter::new(2, 2, Outcome::N)), 64, 
         0..=7, 12, foo
     ));
 

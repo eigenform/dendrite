@@ -20,36 +20,43 @@ impl TAGEBaseComponent {
         index_fn: fn(usize) -> usize
     ) -> Self 
     { 
+        assert!(size.is_power_of_two());
         Self { 
             data: vec![ctr; size],
             size, 
             index_fn 
         }
     }
-    pub fn update(&mut self, pc: usize, outcome: Outcome) {
-        let idx = self.index_from_pc(pc);
-        self.data[idx].update(outcome);
+    pub fn index_mask(&self) -> usize { 
+        self.size - 1
     }
 }
-impl IndexedByPc for TAGEBaseComponent {
-    fn index_from_pc(&self, pc: usize) -> usize { 
-        (self.index_fn)(pc)
+impl PredictorTable for TAGEBaseComponent {
+    type Input = usize;
+    type Entry = SaturatingCounter;
+
+    fn size(&self) -> usize { self.size }
+    fn get_index(&self, pc: usize) -> usize { 
+        (self.index_fn)(pc) & self.index_mask()
     }
-}
-impl PredictFromPc for TAGEBaseComponent {
-    fn predict(&self, pc: usize) -> Outcome { 
-        let idx = self.index_from_pc(pc);
-        self.data[idx].predict()
+    fn get_entry(&self, pc: usize) -> &SaturatingCounter { 
+        let index = self.get_index(pc);
+        &self.data[index]
     }
+    fn get_entry_mut(&mut self, pc: usize) -> &mut SaturatingCounter { 
+        let index = self.get_index(pc);
+        &mut self.data[index]
+    }
+
 }
 
 
 /// An entry in some [TAGEComponent]. 
 #[derive(Clone, Debug)]
 pub struct TAGEEntry {
-    ctr: SaturatingCounter,
-    useful: u8,
-    tag: Option<usize>,
+    pub ctr: SaturatingCounter,
+    pub useful: u8,
+    pub tag: Option<usize>,
 }
 impl TAGEEntry { 
     pub fn new(ctr: SaturatingCounter) -> Self { 
@@ -125,61 +132,25 @@ impl TAGEComponent {
         }
     }
 }
-impl TAGEComponent { 
+impl PredictorTable for TAGEComponent {
+    type Input = usize;
+    type Entry = TAGEEntry;
 
-    pub fn lookup(&self, pc: usize) -> Option<&TAGEEntry> {
-        let index = self.index_from_pc(pc);
-        let tag   = self.tag_from_pc(pc);
-        let entry = &self.data[index];
-        if entry.matches(tag) {
-            Some(entry)
-        } else { 
-            None 
-        }
+    fn size(&self) -> usize { self.size }
+    fn get_index(&self, pc: usize) -> usize { 
+        let ghist_bits = self.csr.output_usize(); 
+        let pc_bits = (self.pc_sel_fn)(pc);
+        let index = ghist_bits ^ pc_bits;
+        index & self.index_mask()
     }
-    pub fn lookup_mut(&mut self, pc: usize) -> Option<&mut TAGEEntry> {
-        let index = self.index_from_pc(pc);
-        let tag   = self.tag_from_pc(pc);
-        let entry = &mut self.data[index];
-        if entry.matches(tag) {
-            Some(entry)
-        } else { 
-            None 
-        }
+    fn get_entry(&self, pc: usize) -> &TAGEEntry { 
+        let index = self.get_index(pc);
+        &self.data[index]
     }
-
-
-    pub fn try_predict(&self, pc: usize) -> Option<Outcome> { 
-        if let Some(entry) = self.lookup(pc) {
-            Some(entry.predict())
-        } else { 
-            None
-        }
-    }
-
-    pub fn allocate(&mut self, pc: usize) {
-        let index = self.index_from_pc(pc);
-        let tag   = self.tag_from_pc(pc);
-        let entry = &mut self.data[index];
-        entry.invalidate();
-        entry.ctr.inc();
-        entry.tag = Some(tag);
-    }
-
-    pub fn update_history(&mut self, ghr: &GlobalHistoryRegister) {
-        self.csr.update(ghr);
+    fn get_entry_mut(&mut self, pc: usize) -> &mut TAGEEntry { 
+        let index = self.get_index(pc);
+        &mut self.data[index]
     }
 
 }
-impl IndexedByPc for TAGEComponent {
-    fn index_from_pc(&self, pc: usize) -> usize { 
-        self.csr.output_usize() ^ (self.pc_sel_fn)(pc)
-    }
-}
-impl TaggedByPc for TAGEComponent {
-    fn tag_from_pc(&self, pc: usize) -> usize { 
-        0
-    }
-}
-
 
