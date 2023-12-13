@@ -14,7 +14,7 @@ impl From<bool> for Outcome {
 }
 
 
-/// An n-bit saturating counter used to follow the behavior of a branch. 
+/// An 'n'-bit saturating counter used to follow the behavior of a branch. 
 #[derive(Clone, Copy, Debug)]
 pub struct SaturatingCounter {
     lo: i8, 
@@ -36,18 +36,36 @@ impl SaturatingCounter {
     }
 
     fn clamp(&self, x: i8) -> i8 { x.clamp(self.lo, self.hi) }
+
+    /// Increment the counter.
     pub fn inc(&mut self) { self.state = self.clamp(self.state.add(1)); }
+
+    /// Decrement the counter.
     pub fn dec(&mut self) { self.state = self.clamp(self.state.sub(1)); }
 
-    pub fn reset(&mut self) {
-        self.state = self.init;
-    }
+    /// Reset the counter.
+    pub fn reset(&mut self) { self.state = self.init; }
 
-    pub fn output(&self) -> Outcome {
+    /// Return the current predicted direction.
+    pub fn predict(&self) -> Outcome {
         if self.state == 0 {
             self.default
         } else { 
             Outcome::from(self.state.is_positive())
+        }
+    }
+
+    /// Update the state of the counter. 
+    pub fn update(&mut self, outcome: Outcome) {
+        let current_prediction = self.predict();
+        let misprediction = outcome != current_prediction;
+        match outcome { 
+            Outcome::N => {
+                if misprediction { self.inc() } else { self.dec() }
+            },
+            Outcome::T => {
+                if misprediction { self.dec() } else { self.inc() }
+            },
         }
     }
 }

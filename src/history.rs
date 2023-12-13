@@ -70,6 +70,65 @@ impl GlobalHistoryRegister {
 }
 
 
+/// A circular shift register used to track folded history.
+///
+/// This folds some global history into 'size' bits, but without the need to
+/// actually read all of the history bits and fold them all together with XOR.
+/// The result should be equivalent to using [GlobalHistoryRegister::fold].
+///
+/// This strategy is supposed to mirror the hardware implementation described 
+/// in "BADGR: A Practical GHR Implementation for TAGE Branch Predictors"
+/// (Schlais and Lipasti, 2016).
+///
+#[derive(Clone, Debug)]
+pub struct FoldedHistoryRegister {
+    data: BitVec,
 
+    /// The size of the output [in bits].
+    output_size: usize,
+
+    /// The range of bits in global history to-be-folded.
+    ghist_range: RangeInclusive<usize>,
+}
+impl FoldedHistoryRegister { 
+    pub fn new(output_size: usize, ghist_range: RangeInclusive<usize>) 
+        -> Self 
+    {
+        Self { 
+            data: bitvec![0; output_size],
+            output_size, 
+            ghist_range,
+        }
+    }
+
+    /// Return the folded history as a [BitSlice].
+    pub fn output(&self) -> &BitSlice { self.data.as_bitslice() }
+
+    /// Return the folded history as a [usize].
+    pub fn output_usize(&self) -> usize { self.data.load::<usize>() }
+
+    /// Using some [GlobalHistoryRegister], update the folded history.
+    pub fn update(&mut self, ghr: &GlobalHistoryRegister) {
+
+        let slice = &ghr.data()[self.ghist_range.clone()];
+        let ghist_size = self.ghist_range.end() - self.ghist_range.start();
+
+        let index = ghist_size % self.output_size;
+
+        let newest_bit = *slice.first().unwrap();
+        let oldest_bit = *slice.last().unwrap();
+        let first_bit  = newest_bit ^ self.data[0];
+        let last_bit   = oldest_bit ^ self.data[index];
+
+        // Rotate by one bit
+        self.data.rotate_right(1);
+
+        // The newest relevant history bit is XOR'ed with with the first bit 
+        self.data.set(0, first_bit);
+
+        // The last relevant history bit will be XOR'ed with this bit
+        self.data.set(index, last_bit);
+    }
+}
 
 
