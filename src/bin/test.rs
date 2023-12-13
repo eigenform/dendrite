@@ -55,7 +55,9 @@ fn main() {
 
     let pc = 0x1000_0000;
     let p = tage.predict(pc);
+    let x = tage.select_alloc_candidate(pc, 3);
     println!("{:?}", p);
+    println!("{:?}", x);
 
 }
 
