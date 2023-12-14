@@ -158,7 +158,6 @@ impl TAGEPredictor {
     pub fn predict(&self, pc: usize) -> TAGEPrediction {
         let (base, tagged) = self.get_all_entries(pc);
         let tags = self.get_all_tags(pc);
-        let tagged_iter = tagged.iter().enumerate().zip(tags.iter());
 
         let mut result = TAGEPrediction {
             provider: TAGEProvider::Base,
@@ -168,6 +167,9 @@ impl TAGEPredictor {
             tag: 0,
         };
 
+        // NOTE: You're iterating through components *backwards* here 
+        // (from the shortest to longest history length).
+        let tagged_iter = tagged.iter().enumerate().zip(tags.iter()).rev();
         for ((idx, entry), tag) in tagged_iter { 
             let hit = if let Some(v) = entry.tag { v == *tag } else { false };
             if hit { 
