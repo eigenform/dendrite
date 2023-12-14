@@ -27,6 +27,10 @@ pub struct TAGEPrediction {
     pub alt_provider: TAGEProvider,
     /// A predicted direction
     pub outcome: Outcome,
+    /// The index identifying the entry used to make this prediction
+    pub idx: usize,
+    /// The tag matching the entry used to make this prediction
+    pub tag: usize,
 }
 
 /// The "TAgged GEometric history length" predictor. 
@@ -46,7 +50,7 @@ impl TAGEPredictor {
     /// to add tagged components with [TAGEPredictor::add_component].
     pub fn new(base: TAGEBaseComponent) -> Self {
         Self { 
-            base, comp: Vec::new()
+            base, comp: Vec::new(),
         }
     }
 
@@ -145,7 +149,8 @@ impl TAGEPredictor {
     pub fn get_all_tags(&self, pc: usize) -> Vec<usize> { 
         let mut tags = Vec::new();
         for component in self.comp.iter() {
-            tags.push(0);
+            let tag = component.get_tag(pc);
+            tags.push(tag);
         }
         tags
     }
@@ -159,6 +164,8 @@ impl TAGEPredictor {
             provider: TAGEProvider::Base,
             alt_provider: TAGEProvider::Base,
             outcome: base.predict(),
+            idx: self.base.get_index(pc),
+            tag: 0,
         };
 
         for ((idx, entry), tag) in tagged_iter { 
@@ -167,6 +174,8 @@ impl TAGEPredictor {
                 result.alt_provider = result.provider;
                 result.provider = TAGEProvider::Tagged(idx);
                 result.outcome = entry.predict();
+                result.idx = self.comp[idx].get_index(pc);
+                result.tag = *tag; 
             }
         }
         result
@@ -178,13 +187,15 @@ impl TAGEPredictor {
         outcome: Outcome
     )
     {
-        // Try to allocate a new entry
+        // Try to allocate a new entry: 
         if let Some(idx) = self.select_alloc_candidate(pc, prediction.provider) {
-            println!("[*] Allocated in comp{}", idx);
+            //println!("[*] Allocated in comp{}", idx);
+            let new_tag   = self.comp[idx].get_tag(pc);
             let new_entry = self.comp[idx].get_entry_mut(pc);
+            new_entry.invalidate();
+            new_entry.tag = Some(new_tag);
             new_entry.useful = 1;
-            new_entry.tag = Some(0);
-            new_entry.ctr.update(outcome);
+            new_entry.ctr.set_direction(outcome);
         } 
         // Otherwise, use some strategy to age all of the entries
         else { 
@@ -198,6 +209,7 @@ impl TAGEPredictor {
         outcome: Outcome
     )
     {
+        // Update the component that provided the prediction
         match prediction.provider {
             TAGEProvider::Base => {
                 let entry = self.base.get_entry_mut(pc);
@@ -211,6 +223,11 @@ impl TAGEPredictor {
         }
     }
 
+    /// Given a particular prediction and the resolved outcome, update the 
+    /// state of the predictor. 
+    ///
+    /// NOTE: The paper suggests periodically resetting the 'useful' bits
+    /// on all counters (ie. every 256,000 branches?)
     pub fn update(&mut self, 
         pc: usize, 
         prediction: TAGEPrediction,
@@ -224,9 +241,11 @@ impl TAGEPredictor {
         else {
             self.update_on_correct_prediction(pc, prediction, outcome);
         }
-
+        
     }
 
+    /// Given some reference to a [GlobalHistoryRegister], update the state
+    /// of the folded history register in each tagged component. 
     pub fn update_history(&mut self, ghr: &GlobalHistoryRegister) {
         for comp in self.comp.iter_mut() {
             comp.csr.update(ghr);
@@ -234,7 +253,5 @@ impl TAGEPredictor {
     }
 
 }
-
-
 
 

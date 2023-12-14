@@ -70,6 +70,10 @@ impl SaturatingCounter {
         }
     }
 
+    pub fn set_direction(&mut self, outcome: Outcome) {
+        self.state = outcome;
+    }
+
     /// Reset the counter.
     pub fn reset(&mut self) { 
         self.state = self.default; 

@@ -119,6 +119,7 @@ impl TAGEComponent {
         pc_sel_fn: fn(usize) -> usize,
     ) -> Self
     {
+        assert!(size.is_power_of_two());
         Self { 
             data: vec![entry; size],
             size,
@@ -152,5 +153,14 @@ impl PredictorTable for TAGEComponent {
         &mut self.data[index]
     }
 
+}
+
+impl TaggedPredictorTable for TAGEComponent {
+    fn get_tag(&self, pc: usize) -> usize { 
+        let pc_bits = (self.pc_sel_fn)(pc); 
+        let ghist0_bits = self.csr.output_usize();
+        let ghist1_bits = self.csr.output_usize() << 1;
+        pc_bits ^ ghist0_bits ^ ghist1_bits
+    }
 }
 

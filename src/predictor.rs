@@ -2,6 +2,7 @@
 use crate::direction::*;
 use crate::history::*;
 
+/// Interface to a table of predictors. 
 pub trait PredictorTable { 
     /// The type of input to the table used to form an index.
     type Input;
@@ -12,10 +13,13 @@ pub trait PredictorTable {
     /// Returns the number of entries in the table.
     fn size(&self) -> usize;
 
-    /// The hash function used to form an index into the table.
+    /// Given some input, return the corresponding index into the table. 
     fn get_index(&self, input: Self::Input) -> usize;
 
+    /// Returns a reference to an entry in the table.
     fn get_entry(&self, input: Self::Input) -> &Self::Entry;
+
+    /// Returns a mutable reference to an entry in the table.
     fn get_entry_mut(&mut self, input: Self::Input) -> &mut Self::Entry;
 
     /// Returns a mask corresponding to the number of entries in the table.
