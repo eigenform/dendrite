@@ -21,6 +21,15 @@ impl From<bool> for Outcome {
         }
     }
 }
+impl Into<bool> for Outcome {
+    fn into(self) -> bool { 
+        match self { 
+            Self::T => true,
+            Self::N => false,
+        }
+    }
+}
+
 
 
 /// An 'n'-bit saturating counter used to follow the behavior of a branch. 

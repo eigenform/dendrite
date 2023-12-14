@@ -9,7 +9,7 @@ pub struct GlobalHistoryRegister {
 }
 
 // NOTE: This *reverses* the all of the bits and presents them in a format 
-// where the rightmost bit is the most-significant (index n) and the leftmost 
+// where the leftmost bit is the most-significant (index n) and the rightmost 
 // bit is the least-significant (index 0).
 impl std::fmt::Display for GlobalHistoryRegister {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -65,6 +65,21 @@ impl GlobalHistoryRegister {
         });
 
         res & output_mask
+    }
+
+    /// Randomize the state of global history. 
+    pub fn randomize(&mut self) {
+        let mut cursor = 0;
+        if self.len < 64 { 
+            let val = rand::random::<u64>();
+            self.data.store(val);
+        } else { 
+            for _ in 0..self.len / 64 { 
+                let val = rand::random::<u64>();
+                self.data.shift_right(64);
+                self.data[cursor..cursor+64].store(val);
+            }
+        }
     }
 
 }

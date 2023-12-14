@@ -66,6 +66,7 @@ impl TAGEEntry {
     pub fn predict(&self) -> Outcome {
         self.ctr.predict()
     }
+
     pub fn update(&mut self, outcome: Outcome) {
         let prediction = self.predict();
         if prediction == outcome { 
@@ -73,16 +74,15 @@ impl TAGEEntry {
         } else { 
             self.useful -= 1;
         }
-
         self.ctr.update(outcome);
     }
 
-    pub fn matches(&self, tag: usize) -> bool { 
-        if let Some(val) = self.tag { 
-            val == tag
-        } else { 
-            false
-        }
+    pub fn tag_match(&self, tag: usize) -> bool { 
+        if let Some(val) = self.tag { val == tag } else { false }
+    }
+
+    pub fn increment_useful(&mut self) {
+        self.useful = (self.useful + 1) & 0b11;
     }
 
     /// Invalidate this entry.
