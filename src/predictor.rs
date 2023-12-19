@@ -1,6 +1,10 @@
 
-use crate::direction::*;
-use crate::history::*;
+pub mod tage;
+pub mod counter; 
+pub mod perceptron;
+
+pub use counter::SaturatingCounter;
+pub use perceptron::Perceptron;
 
 /// Interface to a table of predictors. 
 pub trait PredictorTable { 
@@ -29,17 +33,8 @@ pub trait PredictorTable {
     }
 }
 
+/// Interface to a *tagged* table of predictors. 
 pub trait TaggedPredictorTable: PredictorTable {
     fn get_tag(&self, input: Self::Input) -> usize;
 }
 
-pub trait IndexedByPc {
-    fn index_from_pc(&self, pc: usize) -> usize;
-}
-pub trait TaggedByPc {
-    fn tag_from_pc(&self, pc: usize) -> usize;
-}
-
-pub trait PredictFromPc {
-    fn predict(&self, pc: usize) -> Outcome;
-}

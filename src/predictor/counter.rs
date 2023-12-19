@@ -1,36 +1,5 @@
 
-use std::ops::{ Add, Sub, RangeInclusive };
-
-/// A branch outcome. 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Outcome { N, T }
-impl std::ops::Not for Outcome { 
-    type Output = Self;
-    fn not(self) -> Self { 
-        match self { 
-            Self::N => Self::T,
-            Self::T => Self::N,
-        }
-    }
-}
-impl From<bool> for Outcome {
-    fn from(x: bool) -> Self { 
-        match x { 
-            true => Self::T,
-            false => Self::N 
-        }
-    }
-}
-impl Into<bool> for Outcome {
-    fn into(self) -> bool { 
-        match self { 
-            Self::T => true,
-            Self::N => false,
-        }
-    }
-}
-
-
+use crate::Outcome;
 
 /// An 'n'-bit saturating counter used to follow the behavior of a branch. 
 #[derive(Clone, Copy, Debug)]
@@ -93,7 +62,6 @@ impl SaturatingCounter {
         }
     }
 }
-
 
 
 

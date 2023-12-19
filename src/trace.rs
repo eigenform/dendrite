@@ -1,6 +1,5 @@
 
-use std::collections::*;
-use crate::direction::Outcome;
+use crate::Outcome;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum BranchKind {

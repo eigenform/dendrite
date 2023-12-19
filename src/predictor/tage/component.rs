@@ -1,5 +1,5 @@
 
-use crate::direction::*;
+use crate::Outcome;
 use crate::history::*;
 use crate::predictor::*;
 use std::ops::RangeInclusive;

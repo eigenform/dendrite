@@ -3,12 +3,12 @@ pub mod component;
 pub use component::*;
 
 use bitvec::prelude::*;
-use crate::history::*;
-use crate::direction::*;
-use crate::predictor::*;
-use std::ops::RangeInclusive;
-use rand::prelude;
 use rand::distributions::{ WeightedIndex, Distribution };
+
+use crate::history::*;
+use crate::Outcome;
+use crate::predictor::*;
+
 
 /// Identifies a particular TAGE component.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

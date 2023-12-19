@@ -1,8 +1,7 @@
 
 use dendrite::*;
+use dendrite::predictor::tage::*;
 use bitvec::prelude::*;
-use dendrite::tage::*;
-
 
 fn main() {
     let mut ghr  = GlobalHistoryRegister::new(64);
