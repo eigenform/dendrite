@@ -4,13 +4,12 @@ pub mod target;
 pub mod direction;
 pub mod predictor;
 pub mod tage;
+pub mod trace;
 
-pub mod sim;
-
+pub use trace::*;
 pub use history::*;
 pub use target::*;
 pub use direction::*;
-
 pub use predictor::*;
 
 
