@@ -2,6 +2,33 @@
 use std::collections::*;
 use crate::direction::Outcome;
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum BranchKind {
+    DirectBranch, IndirectBranch,
+    DirectJump, IndirectJump,
+    DirectCall, IndirectCall, Return,
+}
+
+/// A record of branch execution. 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct BranchRecord { 
+    /// The program counter value for this branch
+    pub pc: usize,
+
+    /// The target address evaluated for this branch
+    pub tgt: usize,
+
+    /// The outcome evaluated for this branch
+    pub outcome: Outcome,
+
+    /// The type/kind of branch
+    pub kind: BranchKind,
+}
+
+pub struct Trace { 
+    pub data: Vec<BranchRecord>
+}
+
 /// An identifier for a particular [EmitterOp].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
@@ -11,6 +38,7 @@ impl Label {
     pub fn id(&self) -> usize { self.0 }
 }
 
+/// A map from labels to indexes. 
 #[derive(Debug)]
 pub struct LabelDb {
     data: Vec<Option<usize>>,
@@ -20,15 +48,21 @@ impl LabelDb {
     pub fn new() -> Self { 
         Self { data: Vec::new(), next: 0 }
     }
+
+    /// Allocate a new label
     pub fn alloc(&mut self) -> Label {
         let res = Label::new(self.next);
         self.data.push(None);
         self.next += 1;
         res
     }
+
+    /// Bind a label to some index
     pub fn define(&mut self, label: &Label, idx: usize) {
         self.data[label.id()] = Some(idx);
     }
+
+    /// Resolve a label
     pub fn resolve(&self, label: &Label) -> Option<usize> { 
         self.data[label.id()]
     }
@@ -36,10 +70,10 @@ impl LabelDb {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EmitterLoc { 
-    /// A label resolved into an index of some other [EmitterOp] at compile-time.
+    /// A label to be resolved into an index at compile-time.
     Label(Label),
 
-    /// An index pointing to some other [EmitterOp]. 
+    /// An index pointing to some [EmitterOp]. 
     Index(usize),
 }
 impl EmitterLoc {
@@ -102,7 +136,21 @@ impl EmitterOp {
         }
     }
 
-    /// Given some counter, generate a branch outcome. 
+    /// Return the [BranchKind] for this op. 
+    pub fn kind(&self) -> BranchKind {
+        match self {
+            EmitterOp::Jump(BranchTarget::Direct(_)) 
+                => BranchKind::DirectJump,
+            EmitterOp::Jump(BranchTarget::Indirect(_)) 
+                => BranchKind::IndirectJump,
+            EmitterOp::Branch(BranchTarget::Direct(_), _) 
+                => BranchKind::DirectBranch,
+            EmitterOp::Branch(BranchTarget::Indirect(_), _) 
+                => BranchKind::IndirectBranch,
+        }
+    }
+
+    /// Generate a branch outcome with the provided value.
     pub fn outcome(&self, ctr: usize) -> Outcome {
         match self { 
             EmitterOp::Jump(_) => Outcome::T,
@@ -120,6 +168,7 @@ impl EmitterOp {
         }
     }
 
+    /// Generate a branch target with the provided value.
     pub fn target_loc(&self, ctr: usize) -> &EmitterLoc {
         match self {
             EmitterOp::Jump(BranchTarget::Direct(loc)) |
@@ -136,16 +185,14 @@ impl EmitterOp {
 
 
 
-
+/// Used to assemble and compile a trace. 
 #[derive(Debug)]
-pub struct TraceEmitter { 
+pub struct TraceAssembler { 
     /// The list of [EmitterOp]s. 
     ops: Vec<EmitterOp>,
 
     /// The list of program counter values corresponding to each [EmitterOp].
     pcs: Vec<usize>,
-
-    ctr: Vec<usize>,
 
     /// The initial address/program counter value.
     base: usize,
@@ -157,13 +204,12 @@ pub struct TraceEmitter {
     labels: LabelDb,
 }
 
-impl TraceEmitter { 
+impl TraceAssembler { 
     /// Create a new emitter. 
     pub fn new(base: usize) -> Self { 
         Self { 
             ops: Vec::new(),
             pcs: Vec::new(),
-            ctr: Vec::new(),
             base,
             cursor: base,
             labels: LabelDb::new(),
@@ -186,7 +232,6 @@ impl TraceEmitter {
         let op_size = op.size();
         self.ops.push(op);
         self.pcs.push(self.cursor);
-        self.ctr.push(0);
         self.cursor += op_size;
     }
 
@@ -215,7 +260,8 @@ impl TraceEmitter {
         assert!(aln.is_power_of_two());
         let mask = aln - 1;
         let tgt  = (self.cursor + mask) & !mask;
-        self.cursor = tgt - self.cursor;
+        println!("tgt={:08x} cur={:08x}", tgt, self.cursor);
+        self.cursor = self.cursor + (tgt - self.cursor);
     }
 
     /// Explicitly set the program counter to a particular value. 
@@ -226,7 +272,7 @@ impl TraceEmitter {
 }
 
 
-impl TraceEmitter {
+impl TraceAssembler {
     /// Rewrite occurences of [EmitterLoc::Label] into [EmitterLoc::Index].
     /// This function will panic when encountering an undefined label.
     fn rewrite_labels(&mut self) {
@@ -268,48 +314,44 @@ impl TraceEmitter {
     }
 
 
-    pub fn simulate_for(&mut self, max_iters: usize) -> Vec<BranchRecord> {
+    /// Unroll this program into a trace.
+    pub fn compile(&mut self, max_iters: usize) -> Trace {
         self.rewrite_labels();
 
-        let mut res = Vec::new();
+        let num_ops = self.ops.len();
+        let mut ctr = vec![0; num_ops];
+        let mut data = Vec::new();
         let mut cur = 0;
         let mut iter = 0;
 
-        loop {
-            if iter >= max_iters { break; }
-            if cur >= self.ops.len() { break; }
-
-            let op  = &self.ops[cur];
-            let ctr = self.ctr[cur];
-            let pc  = self.pcs[cur];
-
-            let outcome = op.outcome(ctr);
-            let tgt_loc = op.target_loc(ctr);
-            let tgt_idx = tgt_loc.get_index();
-            let tgt     = self.pcs[tgt_idx];
-
-            // Increment the counter for this branch
-            self.ctr[cur] += 1;
-
-            if outcome == Outcome::T {
-                cur = tgt_idx;
-            } else {
-                cur += op.size();
+        'main: loop {
+            if (iter >= max_iters) || (cur >= num_ops) {
+                break 'main;
             }
 
-            res.push(BranchRecord { pc, tgt, outcome });
+            let op  = &self.ops[cur];
+            let pc  = self.pcs[cur];
 
+            let outcome = op.outcome(ctr[cur]);
+            let tgt_loc = op.target_loc(ctr[cur]);
+            let tgt_idx = tgt_loc.get_index();
+            let tgt     = self.pcs[tgt_idx];
+            let kind    = op.kind();
+            ctr[cur] += 1;
+
+            let record  = BranchRecord { pc, tgt, outcome, kind };
+            data.push(record);
+
+            // Go to the next instruction
             iter += 1;
+            cur = match outcome {
+                Outcome::T => tgt_idx,
+                Outcome::N => cur + op.size(),
+            };
         }
-        res
-    }
-}
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct BranchRecord { 
-    pub pc: usize,
-    pub tgt: usize,
-    pub outcome: Outcome,
+        Trace { data }
+    }
 }
 
 
