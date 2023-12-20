@@ -1,8 +1,8 @@
 
 use dendrite::*;
+use dendrite::predictor::tage::*;
 
-fn main() {
-
+fn emit_trace() -> Trace { 
     let mut e = TraceAssembler::new(0x1000_0000);
     let lab = e.create_label();
     let start = e.create_label();
@@ -17,10 +17,11 @@ fn main() {
     e.bind_label(lab);
     e.pad_align(0x0000_1000);
     e.jump_to_label(start);
+    e.compile(128)
+}
 
-    let t = e.compile(64);
-    for r in t.data.iter() {
-        println!("{:08x?}", r);
-    }
+fn main() {
+
+    let trace = emit_trace();
 
 }

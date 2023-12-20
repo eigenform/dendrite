@@ -23,22 +23,61 @@ pub enum TAGEProvider {
 pub struct TAGEPrediction {
     /// The component providing the prediction
     pub provider: TAGEProvider,
+
     /// Alternate component used to provide a prediction
     pub alt_provider: TAGEProvider,
+
     /// A predicted direction
     pub outcome: Outcome,
+
     /// The index identifying the entry used to make this prediction
     pub idx: usize,
+
     /// The tag matching the entry used to make this prediction
     pub tag: usize,
 }
+
+pub struct TAGEConfig {
+    pub base: TAGEBaseConfig,
+    pub comp: Vec<TAGEComponentConfig>,
+}
+impl TAGEConfig {
+    pub fn new(base: TAGEBaseConfig) -> Self {
+        Self {
+            base,
+            comp: Vec::new(),
+        }
+    }
+
+    pub fn add_component(&mut self, c: TAGEComponentConfig) {
+        self.comp.push(c);
+        self.comp.sort_by(|x, y| {
+            let x_history_len = x.ghr_range.end() - x.ghr_range.start();
+            let y_history_len = y.ghr_range.end() - y.ghr_range.start();
+            std::cmp::Ord::cmp(&y_history_len, &x_history_len)
+        });
+    }
+
+    pub fn build(self) -> TAGEPredictor {
+        let comp = self.comp.iter().map(|c| c.clone().build()).collect();
+        let base = self.base.build();
+        TAGEPredictor {
+            cfg: self,
+            base,
+            comp,
+        }
+    }
+}
+
+
 
 /// The "TAgged GEometric history length" predictor. 
 ///
 /// See "A case for (partially) TAgged GEometric history length branch 
 /// prediction" (Seznec, 2006).
-///
 pub struct TAGEPredictor { 
+    pub cfg: TAGEConfig,
+
     /// Base component
     pub base: TAGEBaseComponent,
 
@@ -46,28 +85,6 @@ pub struct TAGEPredictor {
     pub comp: Vec<TAGEComponent>,
 }
 impl TAGEPredictor {
-    /// Create a new predictor with some base component. The user is expected 
-    /// to add tagged components with [TAGEPredictor::add_component].
-    pub fn new(base: TAGEBaseComponent) -> Self {
-        Self { 
-            base, comp: Vec::new(),
-        }
-    }
-
-    /// Add a tagged component to the predictor.
-    pub fn add_component(&mut self, component: TAGEComponent) {
-        self.comp.push(component);
-
-        // When adding a new component, automatically re-sort the list of 
-        // components by history length. This way, the component with the 
-        // longest history length is always guaranteed to be the first entry 
-        // in the list. 
-        self.comp.sort_by(|x, y| {
-            let x_history_len = x.ghr_range.end() - x.ghr_range.start();
-            let y_history_len = y.ghr_range.end() - y.ghr_range.start();
-            std::cmp::Ord::cmp(&y_history_len, &x_history_len)
-        });
-    }
 
     /// Return the number of tagged components.
     pub fn num_tagged_components(&self) -> usize { 

@@ -1,34 +1,38 @@
 
 use dendrite::*;
-use dendrite::predictor::tage::*;
 use bitvec::prelude::*;
 
 fn main() {
-    let mut ghr  = GlobalHistoryRegister::new(64);
 
     let get_base_pc = |x: usize| { x & 0xfff };
-    let mut tage = TAGEPredictor::new(TAGEBaseComponent::new(
-        SaturatingCounter::new(2, 2, Outcome::N),
-        1024, get_base_pc
-    ));
+    let mut tage_cfg = TAGEConfig::new(
+        TAGEBaseConfig { 
+            ctr: SaturatingCounterConfig {
+                max_t_state: 2,
+                max_n_state: 2,
+                default_state: Outcome::N,
+            },
+            size: 1024,
+            index_fn: get_base_pc,
+        },
+    );
 
-    let foo = |x: usize| { x & 0xfff };
-    tage.add_component(TAGEComponent::new(
-        TAGEEntry::new(SaturatingCounter::new(2, 2, Outcome::N)), 1024, 
-        0..=15, 12, foo
-    ));
-    tage.add_component(TAGEComponent::new(
-        TAGEEntry::new(SaturatingCounter::new(2, 2, Outcome::N)), 1024, 
-        0..=31, 12, foo
-    ));
-    tage.add_component(TAGEComponent::new(
-        TAGEEntry::new(SaturatingCounter::new(2, 2, Outcome::N)), 1024, 
-        0..=63, 12, foo
-    ));
-    tage.add_component(TAGEComponent::new(
-        TAGEEntry::new(SaturatingCounter::new(2, 2, Outcome::N)), 1024, 
-        0..=7, 12, foo
-    ));
+    for ghr_range_hi in &[7, 15, 31, 63] {
+        tage_cfg.add_component(TAGEComponentConfig {
+            size: 1024,
+            ghr_range: 0..=*ghr_range_hi,
+            tag_bits: 12,
+            pc_sel_fn: get_base_pc,
+            ctr: SaturatingCounterConfig {
+                max_t_state: 2,
+                max_n_state: 2,
+                default_state: Outcome::N,
+            },
+        });
+    }
+
+    let mut ghr  = GlobalHistoryRegister::new(64);
+    let mut tage = tage_cfg.build();
 
     // Randomize the state of global history before we start evaluating 
     for _ in 0..64 {

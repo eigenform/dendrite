@@ -2,9 +2,15 @@
 pub mod tage;
 pub mod counter; 
 pub mod perceptron;
+pub mod btb; 
 
-pub use counter::SaturatingCounter;
-pub use perceptron::Perceptron;
+pub use counter::*;
+pub use perceptron::*;
+pub use tage::*;
+pub use btb::*;
+
+pub type PcToIndexFn   = fn(pc: usize) -> usize;
+pub type PcBitSelectFn = fn(pc: usize) -> usize;
 
 /// Interface to a table of predictors. 
 pub trait PredictorTable { 

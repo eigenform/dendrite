@@ -1,32 +1,34 @@
 
 use crate::Outcome;
 
+#[derive(Clone, Copy, Debug)]
+pub struct SaturatingCounterConfig {
+    pub max_t_state: u8,
+    pub max_n_state: u8,
+    pub default_state: Outcome,
+}
+impl SaturatingCounterConfig {
+    pub fn build(self) -> SaturatingCounter {
+        SaturatingCounter {
+            cfg: self,
+            state: self.default_state,
+            ctr: 0,
+        }
+    }
+}
+
 /// An 'n'-bit saturating counter used to follow the behavior of a branch. 
 #[derive(Clone, Copy, Debug)]
 pub struct SaturatingCounter {
-    max_t_state: u8,
-    max_n_state: u8,
-    default: Outcome,
+    cfg: SaturatingCounterConfig,
     state: Outcome,
     ctr: u8,
 }
 impl SaturatingCounter {
-    pub fn new(max_t_state: u8, max_n_state: u8, default: Outcome)
-        -> Self 
-    {
-        Self { 
-            max_t_state,
-            max_n_state,
-            default,
-            state: default,
-            ctr: 0,
-        }
-    }
-
     pub fn strengthen(&mut self) {
         let lim = match self.state { 
-            Outcome::T => self.max_t_state,
-            Outcome::N => self.max_n_state,
+            Outcome::T => self.cfg.max_t_state,
+            Outcome::N => self.cfg.max_n_state,
         };
         self.ctr = (self.ctr + 1).clamp(0, lim);
     }
@@ -45,7 +47,7 @@ impl SaturatingCounter {
 
     /// Reset the counter.
     pub fn reset(&mut self) { 
-        self.state = self.default; 
+        self.state = self.cfg.default_state; 
         self.ctr = 0;
     }
 
