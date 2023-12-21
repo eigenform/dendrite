@@ -67,21 +67,6 @@ impl GlobalHistoryRegister {
         res & output_mask
     }
 
-    /// Randomize the state of global history. 
-    pub fn randomize(&mut self) {
-        let mut cursor = 0;
-        if self.len < 64 { 
-            let val = rand::random::<u64>();
-            self.data.store(val);
-        } else { 
-            for _ in 0..self.len / 64 { 
-                let val = rand::random::<u64>();
-                self.data.shift_right(64);
-                self.data[cursor..cursor+64].store(val);
-            }
-        }
-    }
-
 }
 
 

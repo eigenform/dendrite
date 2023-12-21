@@ -1,3 +1,7 @@
+#![allow(dead_code)]
+#![allow(unused_parens)]
+#![allow(unused_imports)]
+#![allow(unused_mut)]
 
 pub mod history;
 pub mod predictor;
@@ -8,8 +12,9 @@ pub use history::*;
 pub use predictor::*;
 
 /// A branch outcome. 
+#[repr(u32)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Outcome { N, T }
+pub enum Outcome { N = 0, T = 1 }
 impl std::ops::Not for Outcome { 
     type Output = Self;
     fn not(self) -> Self { 

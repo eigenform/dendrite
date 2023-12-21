@@ -1,14 +1,20 @@
 
 use crate::Outcome;
 
+#[repr(u32)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum BranchKind {
-    DirectBranch, IndirectBranch,
-    DirectJump, IndirectJump,
-    DirectCall, IndirectCall, Return,
+    DirectBranch = 0x10,
+    DirectJump   = 0x20,
+    IndirectJump = 0x21,
+    DirectCall   = 0x40, 
+    IndirectCall = 0x41, 
+    Return       = 0x81,
 }
 
+
 /// A record of branch execution. 
+#[repr(C)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct BranchRecord { 
     /// The program counter value for this branch
@@ -24,8 +30,43 @@ pub struct BranchRecord {
     pub kind: BranchKind,
 }
 
+/// A trace generated with the 'dendrite' client for DynamoRIO. 
+pub struct BinaryTrace {
+    pub data: Vec<u8>,
+    /// Number of entries
+    num_entries: usize,
+}
+impl BinaryTrace {
+    pub fn from_file(path: &str) -> Self {
+        use std::fs::File;
+        use std::io::Read;
+        let mut f = File::open(path).unwrap();
+        let len = std::fs::metadata(path).unwrap().len() as usize;
+        assert!(len % std::mem::size_of::<BranchRecord>() == 0);
+
+        let num_entries = len / std::mem::size_of::<BranchRecord>();
+        let mut data = vec![0; len];
+        f.read(&mut data).unwrap();
+        Self { data, num_entries }
+    }
+
+    pub fn num_entries(&self) -> usize { self.num_entries }
+    pub fn as_slice(&self) -> &[BranchRecord] {
+        unsafe { 
+            std::slice::from_raw_parts(
+                self.data.as_ptr() as *const BranchRecord,
+                self.num_entries
+            )
+        }
+    }
+
+}
+
+
 pub struct Trace { 
     pub data: Vec<BranchRecord>
+}
+impl Trace { 
 }
 
 /// An identifier for a particular [EmitterOp].
@@ -145,7 +186,7 @@ impl EmitterOp {
             EmitterOp::Branch(BranchTarget::Direct(_), _) 
                 => BranchKind::DirectBranch,
             EmitterOp::Branch(BranchTarget::Indirect(_), _) 
-                => BranchKind::IndirectBranch,
+                => unimplemented!(),
         }
     }
 
@@ -168,13 +209,13 @@ impl EmitterOp {
     }
 
     /// Generate a branch target with the provided value.
-    pub fn target_loc(&self, ctr: usize) -> &EmitterLoc {
+    pub fn target_loc(&self, _ctr: usize) -> &EmitterLoc {
         match self {
             EmitterOp::Jump(BranchTarget::Direct(loc)) |
             EmitterOp::Branch(BranchTarget::Direct(loc), _) => loc,
 
-            EmitterOp::Jump(BranchTarget::Indirect(locs)) |
-            EmitterOp::Branch(BranchTarget::Indirect(locs), _) => {
+            EmitterOp::Jump(BranchTarget::Indirect(_locs)) |
+            EmitterOp::Branch(BranchTarget::Indirect(_locs), _) => {
                 unimplemented!();
             },
         }
