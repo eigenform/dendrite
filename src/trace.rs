@@ -51,6 +51,23 @@ impl BinaryTrace {
     }
 
     pub fn num_entries(&self) -> usize { self.num_entries }
+
+    pub fn as_slice_trunc(&self, limit: usize) -> &[BranchRecord] {
+        let req_entries = if self.num_entries > limit {
+            limit
+        } else {
+            self.num_entries
+        };
+
+        unsafe { 
+            std::slice::from_raw_parts(
+                self.data.as_ptr() as *const BranchRecord,
+                req_entries
+            )
+        }
+    }
+
+
     pub fn as_slice(&self) -> &[BranchRecord] {
         unsafe { 
             std::slice::from_raw_parts(
