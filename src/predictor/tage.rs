@@ -24,11 +24,14 @@ pub struct TAGEPrediction {
     /// The component providing the prediction
     pub provider: TAGEProvider,
 
+    /// A predicted direction
+    pub outcome: Outcome,
+
     /// Alternate component used to provide a prediction
     pub alt_provider: TAGEProvider,
 
-    /// A predicted direction
-    pub outcome: Outcome,
+    /// Predicted direct from the alternate component
+    pub alt_outcome: Outcome,
 
     /// The index identifying the entry used to make this prediction
     pub idx: usize,
@@ -178,8 +181,9 @@ impl TAGEPredictor {
 
         let mut result = TAGEPrediction {
             provider: TAGEProvider::Base,
-            alt_provider: TAGEProvider::Base,
             outcome: base.predict(),
+            alt_provider: TAGEProvider::Base,
+            alt_outcome: base.predict(),
             idx: self.base.get_index(pc),
             tag: 0,
         };
@@ -191,6 +195,7 @@ impl TAGEPredictor {
             let hit = if let Some(v) = entry.tag { v == *tag } else { false };
             if hit { 
                 result.alt_provider = result.provider;
+                result.alt_outcome = result.outcome;
                 result.provider = TAGEProvider::Tagged(idx);
                 result.outcome = entry.predict();
                 result.idx = self.comp[idx].get_index(pc);
@@ -206,6 +211,20 @@ impl TAGEPredictor {
         outcome: Outcome
     )
     {
+
+        // Update the entry in the component that provided the prediction
+        match prediction.provider {
+            TAGEProvider::Base => {
+                let entry = self.base.get_entry_mut(pc);
+                entry.update(outcome);
+            },
+            TAGEProvider::Tagged(idx) => {
+                let entry = self.comp[idx].get_entry_mut(pc);
+                entry.ctr.update(outcome);
+                entry.decrement_useful();
+            },
+        }
+
         // Try to allocate a new entry: 
         if let Some(idx) = self.select_alloc_candidate(pc, prediction.provider) {
             //println!("[*] Allocated in comp{}", idx);
@@ -213,7 +232,7 @@ impl TAGEPredictor {
             let new_entry = self.comp[idx].get_entry_mut(pc);
             new_entry.invalidate();
             new_entry.tag = Some(new_tag);
-            new_entry.useful = 1;
+            new_entry.useful = 0;
             new_entry.ctr.set_direction(outcome);
         } 
         // Otherwise, use some strategy to age all of the entries
@@ -228,7 +247,7 @@ impl TAGEPredictor {
         outcome: Outcome
     )
     {
-        // Update the component that provided the prediction
+        // Update the entry in the component that provided the prediction
         match prediction.provider {
             TAGEProvider::Base => {
                 let entry = self.base.get_entry_mut(pc);

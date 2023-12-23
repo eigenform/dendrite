@@ -9,8 +9,15 @@ pub use perceptron::*;
 pub use tage::*;
 pub use btb::*;
 
+use crate::history::*;
+
 pub type PcToIndexFn   = fn(pc: usize) -> usize;
 pub type PcBitSelectFn = fn(pc: usize) -> usize;
+
+pub enum IndexStrategy { 
+    FromPc(fn(pc: usize) -> usize),
+    FromPcAndPhr(fn(pc: usize, csr: &FoldedHistoryRegister) -> usize),
+}
 
 /// Interface to a table of predictors. 
 pub trait PredictorTable { 

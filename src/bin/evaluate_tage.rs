@@ -1,72 +1,45 @@
 
 use dendrite::*;
 use std::env;
-use std::collections::*;
 use itertools::*;
 
-struct BranchStats { 
-    pub data: BTreeMap<usize, BranchData>,
-}
-impl BranchStats {
-    pub fn new() -> Self {
-        Self { 
-            data: BTreeMap::new(),
-        }
-    }
-
-    pub fn get(&self, pc: usize) -> Option<&BranchData> {
-        self.data.get(&pc)
-    }
-    pub fn get_mut(&mut self, pc: usize) -> &mut BranchData {
-        self.data.entry(pc).or_insert(BranchData { occ: 0, hits: 0 })
-    }
-    pub fn num_branches(&self) -> usize { 
-        self.data.len()
-    }
+// Fold the program counter into a 12-bit index
+fn tage_get_base_pc(pc: usize) -> usize { 
+    let lo  = pc & 0b0000_0000_0000_0000_0000_0000_1111_1111_1111;
+    let hi  = pc & 0b0000_0000_0000_1111_1111_1111_0000_0000_0000 >> 12;
+    let hi2 = pc & 0b1111_1111_1111_0000_0000_0000_0000_0000_0000 >> 24;
+    lo ^ hi ^ hi2
 }
 
-struct BranchData { 
-    pub occ: usize,
-    pub hits: usize,
-}
-impl BranchData {
-    pub fn hit_rate(&self) -> f64 {
-        self.hits as f64 / self.occ as f64
-    }
+// Fold the program counter into a 16-bit index
+fn btb_get_base_pc(pc: usize) -> usize {
+    let lo  = pc & 0b0000_0000_0000_0000_1111_1111_1111_1111;
+    let hi  = pc & 0b1111_1111_1111_1111_0000_0000_0000_0000 >> 16;
+    lo ^ hi
 }
 
 fn build_tage() -> TAGEPredictor {
-
-    // Index function used to select relevant PC bits. 
-    // The number of bits should correspond to the size of the tables.
-    let get_base_pc = |x: usize| { 
-        let lo  = x & 0b0000_0000_0000_0000_0000_0000_1111_1111_1111;
-        let hi  = x & 0b0000_0000_0000_1111_1111_1111_0000_0000_0000 >> 12;
-        let hi2 = x & 0b1111_1111_1111_0000_0000_0000_0000_0000_0000 >> 24;
-        lo ^ hi ^ hi2
-    };
-
     let mut tage_cfg = TAGEConfig::new(
         TAGEBaseConfig { 
             ctr: SaturatingCounterConfig {
-                max_t_state: 4,
-                max_n_state: 4,
+                max_t_state: 2,
+                max_n_state: 2,
                 default_state: Outcome::N,
             },
-            size: 4096,
-            index_fn: get_base_pc,
+            size: 1 << 12,
+            index_fn: tage_get_base_pc,
         },
     );
 
     for ghr_range_hi in &[7, 15, 31, 63, 127] {
         tage_cfg.add_component(TAGEComponentConfig {
-            size: 4096,
+            size: 1 << 12,
             ghr_range: 0..=*ghr_range_hi,
             tag_bits: 12,
-            pc_sel_fn: get_base_pc,
+            pc_sel_fn: tage_get_base_pc,
             ctr: SaturatingCounterConfig {
-                max_t_state: 4,
-                max_n_state: 4,
+                max_t_state: 2,
+                max_n_state: 2,
                 default_state: Outcome::N,
             },
         });
@@ -85,8 +58,10 @@ fn main() {
 
     let trace = BinaryTrace::from_file(&args[1]);
     let trace_records = trace.as_slice_trunc(2_000_000);
+    let trace_records = trace.as_slice();
     println!("[*] Loaded {} records from {}", trace.num_entries(), args[1]);
 
+    let mut btb = SimpleBTB::new(1 << 16, btb_get_base_pc);
     let mut ghr  = GlobalHistoryRegister::new(128);
     let mut tage = build_tage();
 
@@ -103,8 +78,8 @@ fn main() {
     let mut mpkb_window = 0;
     let mut stats = BranchStats::new();
 
-
     for record in trace_records {
+
         match record.kind { 
             BranchKind::DirectBranch => {},
             BranchKind::DirectJump |
@@ -116,6 +91,7 @@ fn main() {
                 ghr.data_mut().set(0, true);
                 tage.update_history(&ghr);
             },
+            BranchKind::Invalid => unimplemented!("???"),
         }
 
         if let BranchKind::DirectBranch = record.kind { 
@@ -141,8 +117,6 @@ fn main() {
             ghr.data_mut().set(0, record.outcome.into());
             tage.update_history(&ghr);
         }
-
-
     }
 
     let hit_rate = hits as f64 / brns as f64; 

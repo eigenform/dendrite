@@ -70,10 +70,12 @@ impl TAGEEntry {
         Self { ctr, useful: 0, tag: None, }
     }
 
+    /// Get the current predicted outcome.
     pub fn predict(&self) -> Outcome {
         self.ctr.predict()
     }
 
+    /// Update the saturating counter associated with this entry.
     pub fn update(&mut self, outcome: Outcome) {
         let prediction = self.predict();
         if prediction == outcome { 
@@ -84,12 +86,19 @@ impl TAGEEntry {
         self.ctr.update(outcome);
     }
 
+    /// Returns true if the provided tag matches this entry. 
     pub fn tag_match(&self, tag: usize) -> bool { 
         if let Some(val) = self.tag { val == tag } else { false }
     }
 
+    /// Increment the 'useful' counter.
     pub fn increment_useful(&mut self) {
-        self.useful = (self.useful + 1) & 0b11;
+        self.useful = (self.useful + 1).clamp(0, 0b11);
+    }
+
+    /// Decrement the 'useful' counter.
+    pub fn decrement_useful(&mut self) {
+        self.useful = (self.useful - 1).clamp(0, 0b11);
     }
 
     /// Invalidate this entry.

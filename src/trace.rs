@@ -1,34 +1,6 @@
 
 use crate::Outcome;
-
-#[repr(u32)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum BranchKind {
-    DirectBranch = 0x10,
-    DirectJump   = 0x20,
-    IndirectJump = 0x21,
-    DirectCall   = 0x40, 
-    IndirectCall = 0x41, 
-    Return       = 0x81,
-}
-
-
-/// A record of branch execution. 
-#[repr(C)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct BranchRecord { 
-    /// The program counter value for this branch
-    pub pc: usize,
-
-    /// The target address evaluated for this branch
-    pub tgt: usize,
-
-    /// The outcome evaluated for this branch
-    pub outcome: Outcome,
-
-    /// The type/kind of branch
-    pub kind: BranchKind,
-}
+use crate::branch::*;
 
 /// A trace generated with the 'dendrite' client for DynamoRIO. 
 pub struct BinaryTrace {

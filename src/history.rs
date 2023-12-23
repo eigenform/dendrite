@@ -66,9 +66,7 @@ impl GlobalHistoryRegister {
 
         res & output_mask
     }
-
 }
-
 
 /// A circular shift register used to track folded history.
 ///
@@ -79,6 +77,9 @@ impl GlobalHistoryRegister {
 /// This strategy is supposed to mirror the hardware implementation described 
 /// in "BADGR: A Practical GHR Implementation for TAGE Branch Predictors"
 /// (Schlais and Lipasti, 2016).
+///
+/// NOTE: I think this is only relevant if you're shifting in a single bit. 
+/// You'd have to rewrite this if you want to use some other strategy. 
 ///
 #[derive(Clone, Debug)]
 pub struct FoldedHistoryRegister {
