@@ -1,6 +1,11 @@
 
 pub mod component;
+pub mod stat;
+pub mod config;
+
 pub use component::*;
+pub use stat::*;
+pub use config::*;
 
 use bitvec::prelude::*;
 use rand::distributions::{ WeightedIndex, Distribution };
@@ -9,7 +14,7 @@ use crate::history::*;
 use crate::Outcome;
 use crate::predictor::*;
 
-/// Container for inputs passed to TAGE components.
+/// Container for inputs passed to a [TAGEPredictor] and its components.
 #[derive(Clone)]
 pub struct TAGEInputs<'a> { 
     /// Program counter associated with a predicted branch
@@ -20,7 +25,7 @@ pub struct TAGEInputs<'a> {
 }
 
 
-/// Identifies a particular TAGE component.
+/// Identifies a particular component in a [TAGEPredictor].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TAGEProvider { 
     /// The base component
@@ -30,8 +35,8 @@ pub enum TAGEProvider {
     Tagged(usize), 
 }
 
-/// The output from [TAGEPredictor::predict] including the predicted outcome
-/// and other metadata about how the prediction was made.
+/// Container for output from [TAGEPredictor::predict], including the 
+/// predicted outcome and other metadata about how the prediction was made.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TAGEPrediction {
     /// The component providing the prediction
@@ -59,74 +64,6 @@ pub struct TAGEPrediction {
     pub alt_tag: usize,
 }
 
-#[derive(Clone, Debug)]
-pub struct TAGEConfig {
-    /// Base component configuration
-    pub base: TAGEBaseConfig,
-
-    /// Tagged component configurations
-    pub comp: Vec<TAGEComponentConfig>,
-}
-impl TAGEConfig {
-    pub fn new(base: TAGEBaseConfig) -> Self {
-        Self {
-            base,
-            comp: Vec::new(),
-        }
-    }
-
-    pub fn total_entries(&self) -> usize {
-        let c: usize = self.comp.iter().map(|c| c.size).sum();
-        self.base.size + c
-    }
-
-    pub fn storage_bits(&self) -> usize { 
-        let c: usize = self.comp.iter().map(|c| c.storage_bits()).sum();
-        c + self.base.storage_bits()
-    }
-
-    pub fn add_component(&mut self, c: TAGEComponentConfig) {
-        self.comp.push(c);
-        self.comp.sort_by(|x, y| {
-            let x_history_len = x.ghr_range.end() - x.ghr_range.start();
-            let y_history_len = y.ghr_range.end() - y.ghr_range.start();
-            std::cmp::Ord::cmp(&y_history_len, &x_history_len)
-        });
-    }
-
-    pub fn build(self) -> TAGEPredictor {
-        let cfg = self.clone();
-        let comp = self.comp.iter().map(|c| c.clone().build())
-            .collect::<Vec<TAGEComponent>>();
-        let base = self.base.build();
-        let stat = TAGEStats::new(comp.len());
-        TAGEPredictor { cfg, base, comp, stat, 
-            reset_ctr: 0,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct TAGEStats {
-    pub alcs: usize,
-    pub failed_alcs: usize,
-    pub base_miss: usize,
-    pub comp_miss: Vec<usize>,
-    pub resets: usize,
-}
-impl TAGEStats {
-    pub fn new(num_comp: usize) -> Self { 
-        Self {
-            alcs: 0,
-            failed_alcs: 0,
-            base_miss: 0,
-            comp_miss: vec![0; num_comp],
-            resets: 0,
-        }
-    }
-}
-
-
 
 /// The "TAgged GEometric history length" predictor. 
 ///
@@ -134,6 +71,7 @@ impl TAGEStats {
 ///  - "A case for (partially) TAgged GEometric history length branch prediction" 
 ///  (Seznec, 2006).
 pub struct TAGEPredictor { 
+    /// The configuration used to create this object
     pub cfg: TAGEConfig,
 
     pub stat: TAGEStats,
@@ -144,13 +82,38 @@ pub struct TAGEPredictor {
     /// Tagged components
     pub comp: Vec<TAGEComponent>,
 
+    /// Counter used to periodically reset all 'useful' counters
     pub reset_ctr: u8,
 }
 impl TAGEPredictor {
 
+    /// Access the base component using the provided input. 
+    fn get_base_entry(&self, input: TAGEInputs) 
+        -> (usize, &SaturatingCounter)
+    {
+        let idx = self.base.get_index(input);
+        let entry = self.base.get_entry(idx);
+        (idx, entry)
+    }
+
+    /// Access all tagged components using the provided input. 
+    fn get_tagged_entries(&self, input: TAGEInputs) 
+        -> Vec<(usize, &TAGEEntry, usize)>
+    {
+        let mut entries = Vec::new();
+        for component in self.comp.iter() {
+            let index = component.get_index(input.clone());
+            let tag = component.get_tag(input.clone());
+            entries.push((index, component.get_entry(index), tag));
+        }
+        entries
+    }
+
     /// Given a program counter value and the provider of an incorrect 
     /// prediction, try to select a tagged component that will be used to 
     /// allocate a new entry. 
+    ///
+    /// Returns [None] if we fail to allocate a new entry. 
     fn alloc(&self, input: TAGEInputs, provider: TAGEProvider) 
         -> Option<usize>
     { 
@@ -203,6 +166,7 @@ impl TAGEPredictor {
         Some(candidates[dist.sample(&mut rng)])
     }
 
+    /// Update the predictor to account for a misprediction. 
     fn update_incorrect(&mut self, 
         input: TAGEInputs, 
         prediction: TAGEPrediction, 
@@ -212,33 +176,45 @@ impl TAGEPredictor {
         // Update the entry in the component that provided the prediction
         match prediction.provider {
             TAGEProvider::Base => {
-                self.stat.base_miss += 1;
                 let index = self.base.get_index(input.clone());
                 let entry = self.base.get_entry_mut(index);
                 entry.update(outcome);
+
+                self.stat.base_miss += 1;
             },
             TAGEProvider::Tagged(idx) => {
-                self.stat.comp_miss[idx] += 1;
                 let index = self.comp[idx].get_index(input.clone());
                 let entry = self.comp[idx].get_entry_mut(index);
                 entry.ctr.update(outcome);
                 //entry.decrement_useful();
+
+                self.stat.comp_miss[idx] += 1;
             },
         }
 
-        // Try to allocate a new entry 
+        // Try to allocate a new entry. 
+        // If we've succeeded, initialize the new entry with the correct
+        // outcome [in the weakest state] and reset the 'useful' counter.
+        //
+        // All allocation attempts are tracked with an 8-bit counter which is 
+        // incremented on failure and decremented on success. 
+        // When this counter saturates, we reset the state of all 'useful'
+        // counters in an attempt to free up some entries. 
+
         if let Some(idx) = self.alloc(input.clone(), prediction.provider) {
             let new_index = self.comp[idx].get_index(input.clone());
             let new_tag   = self.comp[idx].get_tag(input.clone());
             let new_entry = self.comp[idx].get_entry_mut(new_index);
-            new_entry.invalidate();
+            new_entry.invalidate(self.stat.clk);
             new_entry.tag = Some(new_tag);
             new_entry.useful = 0;
             new_entry.ctr.set_direction(outcome);
+            new_entry.ctr.set_strength(0);
+
+            new_entry.stat.branches.insert(input.pc);
             self.stat.alcs += 1;
             self.reset_ctr = self.reset_ctr.saturating_add(1);
         } 
-        // Otherwise, use some strategy to age all of the entries
         else { 
             self.stat.failed_alcs += 1;
             self.reset_ctr = self.reset_ctr.saturating_sub(1);
@@ -246,6 +222,7 @@ impl TAGEPredictor {
 
     }
 
+    /// Update the predictor to account for a correct prediction.
     fn update_correct(&mut self,
         input: TAGEInputs,
         prediction: TAGEPrediction,
@@ -272,28 +249,6 @@ impl TAGEPredictor {
                 entry.ctr.update(outcome);
             },
         }
-    }
-
-    /// Access the base component using the provided input. 
-    fn get_base_entry(&self, input: TAGEInputs) 
-        -> (usize, &SaturatingCounter)
-    {
-        let idx = self.base.get_index(input);
-        let entry = self.base.get_entry(idx);
-        (idx, entry)
-    }
-
-    /// Access all tagged components using the provided input. 
-    fn get_tagged_entries(&self, input: TAGEInputs) 
-        -> Vec<(usize, &TAGEEntry, usize)>
-    {
-        let mut entries = Vec::new();
-        for component in self.comp.iter() {
-            let index = component.get_index(input.clone());
-            let tag = component.get_tag(input.clone());
-            entries.push((index, component.get_entry(index), tag));
-        }
-        entries
     }
 
 }
@@ -352,22 +307,20 @@ impl TAGEPredictor {
 
     /// Given a particular prediction and the resolved outcome, update the 
     /// state of the predictor. 
-    ///
-    /// NOTE: The paper suggests periodically resetting the 'useful' bits
-    /// on all counters (ie. every 256,000 branches?)
     pub fn update(&mut self, 
         input: TAGEInputs, 
         prediction: TAGEPrediction,
         outcome: Outcome
     )
     {
-        let misprediction = prediction.outcome != outcome;
-        if misprediction {
+        if prediction.outcome != outcome {
             self.update_incorrect(input.clone(), prediction, outcome);
         } else {
             self.update_correct(input.clone(), prediction, outcome);
         }
 
+        // Periodically reset *all* of the 'useful' counters across all 
+        // tagged components. 
         if self.reset_ctr == u8::MAX {
             self.reset_ctr = 0;
             self.stat.resets += 1;
@@ -376,6 +329,7 @@ impl TAGEPredictor {
             }
         }
 
+        self.stat.clk += 1;
     }
 
     /// Given some reference to a [HistoryRegister], update the state

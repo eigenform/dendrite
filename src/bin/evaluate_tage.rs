@@ -6,11 +6,11 @@ use std::time::Instant;
 use bitvec::prelude::*;
 
 
-// Fold a program counter value into 12 bits. 
-//
-// NOTE: I get the impression that this is unreasonably effective, but then
-// again, we're folding 36 bits of the program counter, and this is probably
-// expensive in hardware? 
+/// Fold a program counter value into 12 bits. 
+///
+/// NOTE: I get the impression that this is unreasonably effective, but then
+/// again, we're folding 36 bits of the program counter, and this is probably
+/// expensive in hardware? 
 fn fold_pc_12b(pc: usize) -> usize { 
     let lo  = pc & 0b0000_0000_0000_0000_0000_0000_1111_1111_1111;
     let hi  = pc & 0b0000_0000_0000_1111_1111_1111_0000_0000_0000 >> 12;
@@ -18,16 +18,15 @@ fn fold_pc_12b(pc: usize) -> usize {
     lo ^ hi ^ hi2
 }
 
-// Index function into the base component.
+/// Index function into the base component.
 fn tage_base_fold_pc_12b(comp: &TAGEBaseComponent, pc: usize) -> usize { 
     fold_pc_12b(pc)
 }
 
-// Index function into a tagged component. 
-// - 12 bits from the folded program counter value
-// - 12 bits from the path history register
-// - 12 bits from the folded global history register
-//
+/// Index function into a tagged component. 
+/// - 12 bits from the folded program counter value
+/// - 12 bits from the path history register
+/// - 12 bits from the folded global history register
 fn tage_fold_phr_ghist_12b(comp: &TAGEComponent, 
     pc: usize, phr: &HistoryRegister) -> usize
 {
@@ -39,6 +38,7 @@ fn tage_fold_phr_ghist_12b(comp: &TAGEComponent,
 
 }
 
+/// Hash function for computing a tag.
 fn tage_compute_tag(comp: &TAGEComponent, pc: usize) -> usize { 
     let pc_bits = fold_pc_12b(pc);
     let ghist0_bits = comp.csr.output_usize();
@@ -50,7 +50,6 @@ fn tage_compute_tag(comp: &TAGEComponent, pc: usize) -> usize {
 /// - Fold program counter into 12 bits
 /// - Shift the PHR by one
 /// - XOR the folded program counter with the low 12 bits in the PHR
-///
 fn update_phr(pc: usize, phr: &mut HistoryRegister) {
     let pc_bits  = fold_pc_12b(pc);
 
@@ -200,26 +199,30 @@ fn main() {
     println!("[*] Average MPKB:    {}/1000 ({:.4})", 
         avg_mpkb, avg_mpkb as f64 / 1000.0);
 
+    for (idx, comp) in tage.comp.iter().enumerate() {
+        println!("[*] Tagged component {} (GHR[{:03?}]): {:.2}% utilization", 
+            idx, comp.cfg.ghr_range, comp.utilization());
+    }
+
+
     let d: Vec<(&usize, &BranchData)> = stats.data.iter().collect();
 
     println!("[*] Low hit rate branches:");
-    for (pc, s) in d.iter()
-        .filter(|(pc, s)| s.occ > 100 && s.hit_rate() <= 0.55)
-        .sorted_by(|x,y| { 
-            x.1.hit_rate().partial_cmp(&y.1.hit_rate()).unwrap()
-        })
-    {
-
+    let low_rate_iter = d.iter()
+        .filter(|(_, s)| s.occ > 100 && s.hit_rate() <= 0.55)
+        //.sorted_by(|x,y| { x.1.hit_rate().partial_cmp(&y.1.hit_rate()).unwrap() })
+        .sorted_by(|x,y| { x.1.occ.partial_cmp(&y.1.occ).unwrap() }).rev();
+    for (pc, s) in low_rate_iter {
         let pat = if s.pat.len() > 64 {
             let slice = &s.pat.as_bitslice()[0..64];
-            format!("  {:b}", slice)
+            format!("{:b}", slice)
         } else {
-            format!("  {:b}", s.pat)
+            format!("{:b}", s.pat)
         };
-        println!("{:016x}: {:6}/{:6} ({:.4}) {}",
+        println!("    {:016x}: {:6}/{:6} ({:.4}) {}",
             pc, s.hits, s.occ, s.hit_rate(), pat);
-
     }
+
 }
 
 

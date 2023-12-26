@@ -4,39 +4,14 @@ use crate::history::*;
 use crate::predictor::*;
 use std::ops::RangeInclusive;
 
-#[derive(Clone, Debug)]
-pub struct TAGEBaseConfig {
-    /// Parameters for the saturating counters
-    pub ctr: SaturatingCounterConfig,
-
-    /// Number of entries
-    pub size: usize,
-
-    /// Strategy for indexing into the table.
-    pub index_strat: IndexStrategy<TAGEBaseComponent>,
-}
-impl TAGEBaseConfig {
-    pub fn storage_bits(&self) -> usize { 
-        self.ctr.storage_bits() * self.size
-    }
-
-    pub fn build(self) -> TAGEBaseComponent {
-        assert!(self.size.is_power_of_two());
-        TAGEBaseComponent {
-            data: vec![self.ctr.build(); self.size],
-            cfg: self,
-        }
-    }
-}
-
 
 /// A base component in the TAGE predictor. 
 #[derive(Clone, Debug)]
 pub struct TAGEBaseComponent {
-    cfg: TAGEBaseConfig,
+    pub cfg: TAGEBaseConfig,
 
     /// A table of saturating counters
-    data: Vec<SaturatingCounter>,
+    pub data: Vec<SaturatingCounter>,
 }
 impl TAGEBaseComponent {
     pub fn index_mask(&self) -> usize { 
@@ -76,15 +51,32 @@ impl PredictorTable for TAGEBaseComponent {
 /// An entry in some [TAGEComponent]. 
 #[derive(Clone, Debug)]
 pub struct TAGEEntry {
+    /// Container for debugging and analysis data
+    pub stat: TAGEEntryStats,
+
+    /// State machine tracking a branch outcome
     pub ctr: SaturatingCounter,
+
+    /// The number of bits in the 'useful' counter
     pub useful_bits: usize,
+
+    /// The 'useful' counter, used to determine when the entry is 
+    /// eligible to be invalidated and replaced
     pub useful: u8,
+
+    /// Tag associated with this entry
     pub tag: Option<usize>,
-    pub updates: usize,
 }
 impl TAGEEntry { 
     pub fn new(ctr: SaturatingCounter, useful_bits: usize) -> Self { 
-        Self { ctr, useful_bits, useful: 0, tag: None, updates: 0 }
+        Self { 
+            ctr, 
+            useful_bits, 
+            useful: 0, 
+            tag: None, 
+            stat: TAGEEntryStats::new(),
+
+        }
     }
 
     /// Get the current predicted outcome.
@@ -101,6 +93,8 @@ impl TAGEEntry {
             self.useful -= 1;
         }
         self.ctr.update(outcome);
+
+        self.stat.updates += 1;
     }
 
     /// Returns true if the provided tag matches this entry. 
@@ -119,59 +113,13 @@ impl TAGEEntry {
     }
 
     /// Invalidate this entry.
-    pub fn invalidate(&mut self) {
+    pub fn invalidate(&mut self, clk: usize) {
         self.ctr.reset();
         self.useful = 0;
         self.tag = None;
-    }
-}
+        self.stat.invalidations += 1;
 
-#[derive(Clone, Debug)]
-pub struct TAGEComponentConfig {
-    /// Number of entries
-    pub size: usize,
-
-    /// Relevant slice in global history
-    pub ghr_range: RangeInclusive<usize>,
-
-    /// Number of tag bits
-    pub tag_bits: usize,
-
-    pub useful_bits: usize,
-
-    /// Strategy for indexing into the table
-    pub index_strat: IndexStrategy<TAGEComponent>,
-
-    /// Strategy for creating tags
-    pub tag_strat: TagStrategy<TAGEComponent>,
-
-    /// Parameters for the saturating counters
-    pub ctr: SaturatingCounterConfig,
-}
-impl TAGEComponentConfig {
-    pub fn storage_bits(&self) -> usize { 
-        let entry_size = (
-            self.ctr.storage_bits() +
-            self.useful_bits +
-            self.tag_bits
-        );
-        entry_size * self.size
-    }
-
-    pub fn build(self) -> TAGEComponent {
-        assert!(self.size.is_power_of_two());
-        let csr = FoldedHistoryRegister::new(
-            self.size.ilog2() as usize,
-            self.ghr_range.clone()
-        );
-        let entry = TAGEEntry::new(self.ctr.build(), self.useful_bits);
-        let data = vec![entry; self.size];
-
-        TAGEComponent {
-            cfg: self,
-            data,
-            csr,
-        }
+        //self.stat.generations.push(clk);
     }
 }
 
@@ -185,11 +133,24 @@ pub struct TAGEComponent {
     pub csr: FoldedHistoryRegister,
 }
 impl TAGEComponent {
+    pub fn num_useful_entries(&self) -> usize { 
+        self.data.iter().filter(|e| e.useful != 0).count()
+    }
+
+    /// Calculate what percentage of entries have been allocated. 
+    pub fn utilization(&self) -> f64 { 
+        let unused_entries = self.data.iter().filter(|e| e.stat.was_unused())
+            .count() as f64;
+        (1.0 - (unused_entries / self.data.len() as f64)) * 100.0
+    }
+
+    /// Reset the 'useful' counter for all entries in this component.
     pub fn reset_useful_bits(&mut self) {
         for entry in self.data.iter_mut() {
             entry.useful = 0;
         }
     }
+
 }
 
 impl PredictorTable for TAGEComponent {

@@ -45,6 +45,16 @@ impl SaturatingCounter {
         }
     }
 
+    /// Set the strength of the current prediction.
+    pub fn set_strength(&mut self, val: u8) {
+        let lim = match self.state { 
+            Outcome::T => self.cfg.max_t_state,
+            Outcome::N => self.cfg.max_n_state,
+        };
+        self.ctr = val.clamp(0, lim);
+    }
+
+    /// Set the current predicted direction.
     pub fn set_direction(&mut self, outcome: Outcome) {
         self.state = outcome;
     }
