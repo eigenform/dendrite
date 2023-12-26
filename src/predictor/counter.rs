@@ -8,6 +8,10 @@ pub struct SaturatingCounterConfig {
     pub default_state: Outcome,
 }
 impl SaturatingCounterConfig {
+    pub fn storage_bits(&self) -> usize {
+        (self.max_t_state.ilog2() + self.max_n_state.ilog2() + 1)
+            as usize
+    }
     pub fn build(self) -> SaturatingCounter {
         SaturatingCounter {
             cfg: self,

@@ -4,7 +4,7 @@ use crate::history::*;
 use crate::predictor::*;
 use std::ops::RangeInclusive;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct TAGEBaseConfig {
     /// Parameters for the saturating counters
     pub ctr: SaturatingCounterConfig,
@@ -12,10 +12,14 @@ pub struct TAGEBaseConfig {
     /// Number of entries
     pub size: usize,
 
-    /// Index function
-    pub index_fn: PcToIndexFn,
+    /// Strategy for indexing into the table.
+    pub index_strat: IndexStrategy<TAGEBaseComponent>,
 }
 impl TAGEBaseConfig {
+    pub fn storage_bits(&self) -> usize { 
+        self.ctr.storage_bits() * self.size
+    }
+
     pub fn build(self) -> TAGEBaseComponent {
         assert!(self.size.is_power_of_two());
         TAGEBaseComponent {
@@ -30,6 +34,7 @@ impl TAGEBaseConfig {
 #[derive(Clone, Debug)]
 pub struct TAGEBaseComponent {
     cfg: TAGEBaseConfig,
+
     /// A table of saturating counters
     data: Vec<SaturatingCounter>,
 }
@@ -39,22 +44,32 @@ impl TAGEBaseComponent {
     }
 }
 impl PredictorTable for TAGEBaseComponent {
-    type Input = usize;
+    type Input<'a> = TAGEInputs<'a>;
+    type Index = usize;
     type Entry = SaturatingCounter;
 
     fn size(&self) -> usize { self.cfg.size }
-    fn get_index(&self, pc: usize) -> usize { 
-        (self.cfg.index_fn)(pc) & self.index_mask()
-    }
-    fn get_entry(&self, pc: usize) -> &SaturatingCounter { 
-        let index = self.get_index(pc);
-        &self.data[index]
-    }
-    fn get_entry_mut(&mut self, pc: usize) -> &mut SaturatingCounter { 
-        let index = self.get_index(pc);
-        &mut self.data[index]
+
+    fn get_index(&self, input: TAGEInputs) -> usize { 
+        let res = match self.cfg.index_strat {
+            IndexStrategy::FromPc(func) => { 
+                (func)(self, input.pc)
+            },
+            IndexStrategy::FromPhr(func) => { 
+                (func)(self, input.pc, input.phr)
+            },
+        };
+        res & self.index_mask()
     }
 
+    fn get_entry(&self, idx: usize) -> &SaturatingCounter { 
+        let index = idx & self.index_mask();
+        &self.data[index]
+    }
+    fn get_entry_mut(&mut self, idx: usize) -> &mut SaturatingCounter { 
+        let index = idx & self.index_mask();
+        &mut self.data[index]
+    }
 }
 
 
@@ -64,10 +79,11 @@ pub struct TAGEEntry {
     pub ctr: SaturatingCounter,
     pub useful: u8,
     pub tag: Option<usize>,
+    pub updates: usize,
 }
 impl TAGEEntry { 
     pub fn new(ctr: SaturatingCounter) -> Self { 
-        Self { ctr, useful: 0, tag: None, }
+        Self { ctr, useful: 0, tag: None, updates: 0 }
     }
 
     /// Get the current predicted outcome.
@@ -87,7 +103,7 @@ impl TAGEEntry {
     }
 
     /// Returns true if the provided tag matches this entry. 
-    pub fn tag_match(&self, tag: usize) -> bool { 
+    pub fn tag_matches(&self, tag: usize) -> bool { 
         if let Some(val) = self.tag { val == tag } else { false }
     }
 
@@ -120,13 +136,20 @@ pub struct TAGEComponentConfig {
     /// Number of tag bits
     pub tag_bits: usize,
 
-    /// Function selecting relevant program counter bits
-    pub pc_sel_fn: PcBitSelectFn,
+    /// Strategy for indexing into the table
+    pub index_strat: IndexStrategy<TAGEComponent>,
+
+    /// Strategy for creating tags
+    pub tag_strat: TagStrategy<TAGEComponent>,
 
     /// Parameters for the saturating counters
     pub ctr: SaturatingCounterConfig,
 }
 impl TAGEComponentConfig {
+    pub fn storage_bits(&self) -> usize { 
+        (self.ctr.storage_bits() + self.tag_bits.ilog2() as usize) * self.size
+    }
+
     pub fn build(self) -> TAGEComponent {
         assert!(self.size.is_power_of_two());
         let csr = FoldedHistoryRegister::new(
@@ -154,33 +177,52 @@ pub struct TAGEComponent {
     pub csr: FoldedHistoryRegister,
 }
 impl PredictorTable for TAGEComponent {
-    type Input = usize;
+    type Input<'a> = TAGEInputs<'a>;
+    type Index = usize;
     type Entry = TAGEEntry;
 
     fn size(&self) -> usize { self.cfg.size }
-    fn get_index(&self, pc: usize) -> usize { 
-        let ghist_bits = self.csr.output_usize(); 
-        let pc_bits = (self.cfg.pc_sel_fn)(pc);
-        let index = ghist_bits ^ pc_bits;
-        index & self.index_mask()
+
+    fn get_index(&self, input: TAGEInputs) -> usize { 
+        let res = match self.cfg.index_strat {
+            IndexStrategy::FromPc(func) => { 
+                (func)(self, input.pc)
+            },
+            IndexStrategy::FromPhr(func) => { 
+                (func)(self, input.pc, input.phr)
+            },
+        };
+        res & self.index_mask()
     }
-    fn get_entry(&self, pc: usize) -> &TAGEEntry { 
-        let index = self.get_index(pc);
+
+
+    //fn get_index(&self, pc: usize) -> usize { 
+    //    let ghist_bits = self.csr.output_usize(); 
+    //    let pc_bits = (self.cfg.pc_sel_fn)(pc);
+    //    let index = ghist_bits ^ pc_bits;
+    //    index & self.index_mask()
+    //}
+
+    fn get_entry(&self, idx: usize) -> &TAGEEntry { 
+        let index = idx & self.index_mask();
         &self.data[index]
     }
-    fn get_entry_mut(&mut self, pc: usize) -> &mut TAGEEntry { 
-        let index = self.get_index(pc);
+    fn get_entry_mut(&mut self, idx: usize) -> &mut TAGEEntry { 
+        let index = idx & self.index_mask();
         &mut self.data[index]
     }
 
 }
 
-impl TaggedPredictorTable for TAGEComponent {
-    fn get_tag(&self, pc: usize) -> usize { 
-        let pc_bits = (self.cfg.pc_sel_fn)(pc); 
-        let ghist0_bits = self.csr.output_usize();
-        let ghist1_bits = self.csr.output_usize() << 1;
-        pc_bits ^ ghist0_bits ^ ghist1_bits
+impl <'a> TaggedPredictorTable<'a> for TAGEComponent {
+    fn get_tag(&self, input: TAGEInputs) -> usize { 
+        match self.cfg.tag_strat {
+            TagStrategy::FromPc(func) => (func)(self, input.pc)
+        }
+        //let pc_bits = (self.cfg.pc_sel_fn)(pc); 
+        //let ghist0_bits = self.csr.output_usize();
+        //let ghist1_bits = self.csr.output_usize() << 1;
+        //pc_bits ^ ghist0_bits ^ ghist1_bits
     }
 }
 

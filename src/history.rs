@@ -3,7 +3,7 @@ use bitvec::prelude::*;
 use std::ops::{ RangeInclusive };
 
 
-pub struct GlobalHistoryRegister {
+pub struct HistoryRegister {
     pub data: BitVec<usize, Lsb0>,
     len: usize,
 }
@@ -11,7 +11,7 @@ pub struct GlobalHistoryRegister {
 // NOTE: This *reverses* the all of the bits and presents them in a format 
 // where the leftmost bit is the most-significant (index n) and the rightmost 
 // bit is the least-significant (index 0).
-impl std::fmt::Display for GlobalHistoryRegister {
+impl std::fmt::Display for HistoryRegister {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let x: String = self.data.as_bitslice().iter().by_vals()
             .map(|b| if b { '1' } else { '0' })
@@ -21,7 +21,7 @@ impl std::fmt::Display for GlobalHistoryRegister {
     }
 }
 
-impl GlobalHistoryRegister {
+impl HistoryRegister {
     /// Create a register with the specified length in bits.
     /// All bits in the register are initialized to zero. 
     pub fn new(len: usize) -> Self { 
@@ -38,7 +38,7 @@ impl GlobalHistoryRegister {
 }
 
 
-impl GlobalHistoryRegister {
+impl HistoryRegister {
     /// Shift the register by 'n' bits. 
     /// The bottom 'n' bits become zero, and the top 'n' bits are discarded.
     pub fn shift_by(&mut self, n: usize)  {
@@ -72,7 +72,7 @@ impl GlobalHistoryRegister {
 ///
 /// This folds some global history into 'size' bits, but without the need to
 /// actually read all of the history bits and fold them all together with XOR.
-/// The result should be equivalent to using [GlobalHistoryRegister::fold].
+/// The result should be equivalent to using [HistoryRegister::fold].
 ///
 /// This strategy is supposed to mirror the hardware implementation described 
 /// in "BADGR: A Practical GHR Implementation for TAGE Branch Predictors"
@@ -108,8 +108,8 @@ impl FoldedHistoryRegister {
     /// Return the folded history as a [usize].
     pub fn output_usize(&self) -> usize { self.data.load::<usize>() }
 
-    /// Using some [GlobalHistoryRegister], update the folded history.
-    pub fn update(&mut self, ghr: &GlobalHistoryRegister) {
+    /// Using some [HistoryRegister], update the folded history.
+    pub fn update(&mut self, ghr: &HistoryRegister) {
 
         let slice = &ghr.data()[self.ghist_range.clone()];
         let ghist_size = self.ghist_range.end() - self.ghist_range.start();

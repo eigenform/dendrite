@@ -56,43 +56,41 @@ impl SimpleBTBEntry {
 pub struct SimpleBTB {
     size: usize,
     data: Vec<SimpleBTBEntry>,
-    index_fn: PcToIndexFn,
 }
 impl SimpleBTB {
-    pub fn new(size: usize, index_fn: PcToIndexFn) -> Self {
+    pub fn new(size: usize) -> Self {
         assert!(size.is_power_of_two());
         Self { 
             size,
             data: vec![SimpleBTBEntry::new(); size],
-            index_fn,
         }
     }
 }
 
-impl PredictorTable for SimpleBTB {
-    /// The type of input to the table used to form an index.
-    type Input = usize;
-
-    /// The type of entry in the table.
-    type Entry = SimpleBTBEntry;
-
-    /// Returns the number of entries in the table.
-    fn size(&self) -> usize { self.size }
-
-    /// Given some input, return the corresponding index into the table. 
-    fn get_index(&self, input: Self::Input) -> usize {
-        (self.index_fn)(input) & self.index_mask()
-    }
-
-    /// Returns a reference to an entry in the table.
-    fn get_entry(&self, input: Self::Input) -> &Self::Entry {
-        let idx = self.get_index(input);
-        &self.data[idx]
-    }
-
-    /// Returns a mutable reference to an entry in the table.
-    fn get_entry_mut(&mut self, input: Self::Input) -> &mut Self::Entry {
-        let idx = self.get_index(input);
-        &mut self.data[idx]
-    }
-}
+//impl PredictorTable for SimpleBTB {
+//    /// The type of input to the table used to form an index.
+//    type Input<'a> = usize;
+//
+//    type Index = usize;
+//
+//    /// The type of entry in the table.
+//    type Entry = SimpleBTBEntry;
+//
+//    /// Returns the number of entries in the table.
+//    fn size(&self) -> usize { self.size }
+//
+//    /// Given some input, return the corresponding index into the table. 
+//    //fn get_index(&self, input: Self::Input) -> usize {
+//    //    (self.index_fn)(input) & self.index_mask()
+//    //}
+//
+//    /// Returns a reference to an entry in the table.
+//    fn get_entry(&self, idx: Self::Index) -> &Self::Entry {
+//        &self.data[idx]
+//    }
+//
+//    /// Returns a mutable reference to an entry in the table.
+//    fn get_entry_mut(&mut self, idx: Self::Index) -> &mut Self::Entry {
+//        &mut self.data[idx]
+//    }
+//}

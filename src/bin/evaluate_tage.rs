@@ -1,49 +1,100 @@
 
 use dendrite::*;
-use std::env;
 use itertools::*;
+use std::env;
+use std::time::Instant;
+use bitvec::prelude::*;
 
-// Fold the program counter into a 12-bit index
-fn tage_get_base_pc(pc: usize) -> usize { 
+
+// Fold a program counter value into 12 bits. 
+//
+// NOTE: I get the impression that this is unreasonably effective, but then
+// again, we're folding 36 bits of the program counter, and this is probably
+// expensive in hardware? 
+fn fold_pc_12b(pc: usize) -> usize { 
     let lo  = pc & 0b0000_0000_0000_0000_0000_0000_1111_1111_1111;
     let hi  = pc & 0b0000_0000_0000_1111_1111_1111_0000_0000_0000 >> 12;
     let hi2 = pc & 0b1111_1111_1111_0000_0000_0000_0000_0000_0000 >> 24;
     lo ^ hi ^ hi2
 }
 
-// Fold the program counter into a 16-bit index
-fn btb_get_base_pc(pc: usize) -> usize {
-    let lo  = pc & 0b0000_0000_0000_0000_1111_1111_1111_1111;
-    let hi  = pc & 0b1111_1111_1111_1111_0000_0000_0000_0000 >> 16;
-    lo ^ hi
+// Index function into the base component.
+fn tage_base_fold_pc_12b(comp: &TAGEBaseComponent, pc: usize) -> usize { 
+    fold_pc_12b(pc)
 }
+
+// Index function into a tagged component. 
+// - 12 bits from the folded program counter value
+// - 12 bits from the path history register
+// - 12 bits from the folded global history register
+//
+fn tage_fold_phr_ghist_12b(comp: &TAGEComponent, 
+    pc: usize, phr: &HistoryRegister) -> usize
+{
+    let pc_bits = fold_pc_12b(pc);
+    let phr_bits = phr.data()[0..=11].load::<usize>() & 0b1111_1111_1110;
+
+    let ghist_bits = comp.csr.output_usize(); 
+    ghist_bits ^ pc_bits ^ phr_bits
+
+}
+
+fn tage_compute_tag(comp: &TAGEComponent, pc: usize) -> usize { 
+    let pc_bits = fold_pc_12b(pc);
+    let ghist0_bits = comp.csr.output_usize();
+    let ghist1_bits = comp.csr.output_usize() << 1;
+    (pc_bits ^ ghist0_bits ^ ghist1_bits) & ((1 << comp.cfg.tag_bits) -1)
+}
+
+/// Update the path history register. 
+/// - Fold program counter into 12 bits
+/// - Shift the PHR by one
+/// - XOR the folded program counter with the low 12 bits in the PHR
+///
+fn update_phr(pc: usize, phr: &mut HistoryRegister) {
+    let pc_bits  = fold_pc_12b(pc);
+
+    phr.shift_by(1);
+    let phr_bits = phr.data()[0..=11].load::<usize>();
+    let new_bits = pc_bits ^ phr_bits;
+    phr.data_mut()[0..=11].store(new_bits);
+}
+
 
 fn build_tage() -> TAGEPredictor {
     let mut tage_cfg = TAGEConfig::new(
         TAGEBaseConfig { 
             ctr: SaturatingCounterConfig {
-                max_t_state: 2,
-                max_n_state: 2,
+                max_t_state: 1,
+                max_n_state: 1,
                 default_state: Outcome::N,
             },
             size: 1 << 12,
-            index_fn: tage_get_base_pc,
+            index_strat: IndexStrategy::FromPc(tage_base_fold_pc_12b),
         },
     );
 
     for ghr_range_hi in &[7, 15, 31, 63, 127] {
-        tage_cfg.add_component(TAGEComponentConfig {
-            size: 1 << 12,
-            ghr_range: 0..=*ghr_range_hi,
-            tag_bits: 12,
-            pc_sel_fn: tage_get_base_pc,
-            ctr: SaturatingCounterConfig {
-                max_t_state: 2,
-                max_n_state: 2,
-                default_state: Outcome::N,
-            },
+        tage_cfg.add_component(
+            TAGEComponentConfig {
+                size: 1 << 12,
+                ghr_range: 0..=*ghr_range_hi,
+                tag_bits: 8,
+                ctr: SaturatingCounterConfig {
+                    max_t_state: 1,
+                    max_n_state: 1,
+                    default_state: Outcome::N,
+                },
+                index_strat: IndexStrategy::FromPhr(tage_fold_phr_ghist_12b),
+                tag_strat: TagStrategy::FromPc(tage_compute_tag),
         });
     }
+
+    let storage_bits  = tage_cfg.storage_bits();
+    let storage_kib = storage_bits as f64 / 1024.0 / 8.0;
+    println!("[*] TAGE storage bits: {}b, {:.2}KiB", 
+        storage_bits, storage_kib
+    );
 
     tage_cfg.build()
 }
@@ -57,19 +108,24 @@ fn main() {
     }
 
     let trace = BinaryTrace::from_file(&args[1]);
-    let trace_records = trace.as_slice_trunc(2_000_000);
     let trace_records = trace.as_slice();
     println!("[*] Loaded {} records from {}", trace.num_entries(), args[1]);
 
-    let mut btb = SimpleBTB::new(1 << 16, btb_get_base_pc);
-    let mut ghr  = GlobalHistoryRegister::new(128);
+    let ghr_bits = 128;
     let mut tage = build_tage();
+    let mut ghr  = HistoryRegister::new(ghr_bits);
+    let mut phr  = HistoryRegister::new(32);
+    println!("[*] GHR length: {}", ghr_bits);
 
     // Randomize the state of global history before we start evaluating 
     for _ in 0..64 {
         ghr.shift_by(1);
         ghr.data_mut().set(0, rand::random());
         tage.update_history(&ghr);
+
+        phr.shift_by(1);
+        phr.data_mut().set(0, rand::random());
+
     }
 
     let mut hits = 0;
@@ -78,10 +134,13 @@ fn main() {
     let mut mpkb_window = 0;
     let mut stats = BranchStats::new();
 
+    let start = Instant::now();
     for record in trace_records {
-
         match record.kind { 
-            BranchKind::DirectBranch => {},
+            BranchKind::Invalid => unreachable!(),
+
+            // Record all unconditionally taken branches in the GHR and 
+            // propagate updates to the TAGE folded history registers
             BranchKind::DirectJump |
             BranchKind::IndirectJump |
             BranchKind::DirectCall |
@@ -90,34 +149,42 @@ fn main() {
                 ghr.shift_by(1);
                 ghr.data_mut().set(0, true);
                 tage.update_history(&ghr);
+                update_phr(record.pc, &mut phr);
             },
-            BranchKind::Invalid => unimplemented!("???"),
-        }
 
-        if let BranchKind::DirectBranch = record.kind { 
-            let stat = stats.get_mut(record.pc);
-            stat.occ += 1;
+            // Use the TAGE predictor to evaluate conditional branches
+            BranchKind::DirectBranch => {
+                if brns % 1000 == 0 { 
+                    mpkb_cnts.push(mpkb_window);
+                    mpkb_window = 0;
+                }
 
-            //println!("{:016x?}", record);
-            if brns % 1000 == 0 { 
-                mpkb_cnts.push(mpkb_window);
-                mpkb_window = 0;
-            }
+                let stat = stats.get_mut(record.pc);
 
-            brns += 1;
-            let p = tage.predict(record.pc);
-            if record.outcome == p.outcome {
-                hits += 1;
-                stat.hits += 1;
-            } else { 
-                mpkb_window += 1;
-            }
-            tage.update(record.pc, p, record.outcome);
-            ghr.shift_by(1);
-            ghr.data_mut().set(0, record.outcome.into());
-            tage.update_history(&ghr);
+                let inputs = TAGEInputs { 
+                    pc: record.pc,
+                    phr: &phr,
+                };
+                let p = tage.predict(inputs.clone());
+                if record.outcome == p.outcome {
+                    hits += 1;
+                    stat.hits += 1;
+                } else { 
+                    mpkb_window += 1;
+                }
+                stat.occ += 1;
+                brns += 1;
+
+                tage.update(inputs, p, record.outcome);
+                ghr.shift_by(1);
+                ghr.data_mut().set(0, record.outcome.into());
+                tage.update_history(&ghr);
+                update_phr(record.pc, &mut phr);
+            },
         }
     }
+    let done = start.elapsed();
+    println!("[*] Completed in {:.3?}", done);
 
     let hit_rate = hits as f64 / brns as f64; 
     let avg_mpkb = mpkb_cnts.iter().sum::<usize>() / mpkb_cnts.len();
@@ -139,9 +206,6 @@ fn main() {
         println!("{:016x}: {:6}/{:6} ({:.4})", 
             pc, s.hits, s.occ, s.hit_rate());
     }
-
-
-
 }
 
 
