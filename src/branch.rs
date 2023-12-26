@@ -1,5 +1,6 @@
 
 use std::collections::*;
+use bitvec::prelude::*;
 
 /// A branch outcome. 
 #[repr(u32)]
@@ -81,7 +82,7 @@ impl BranchStats {
     }
 
     pub fn get_mut(&mut self, pc: usize) -> &mut BranchData {
-        self.data.entry(pc).or_insert(BranchData { occ: 0, hits: 0 })
+        self.data.entry(pc).or_insert(BranchData::new())
     }
 
     pub fn num_branches(&self) -> usize { 
@@ -92,8 +93,16 @@ impl BranchStats {
 pub struct BranchData { 
     pub occ: usize,
     pub hits: usize,
+    pub pat: BitVec,
 }
 impl BranchData {
+    pub fn new() -> Self { 
+        Self { 
+            occ: 0,
+            hits: 0,
+            pat: BitVec::new(),
+        }
+    }
     pub fn hit_rate(&self) -> f64 {
         self.hits as f64 / self.occ as f64
     }

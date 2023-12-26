@@ -59,7 +59,7 @@ pub struct TAGEPrediction {
     pub alt_tag: usize,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TAGEConfig {
     /// Base component configuration
     pub base: TAGEBaseConfig,
@@ -73,6 +73,11 @@ impl TAGEConfig {
             base,
             comp: Vec::new(),
         }
+    }
+
+    pub fn total_entries(&self) -> usize {
+        let c: usize = self.comp.iter().map(|c| c.size).sum();
+        self.base.size + c
     }
 
     pub fn storage_bits(&self) -> usize { 
@@ -91,12 +96,32 @@ impl TAGEConfig {
 
     pub fn build(self) -> TAGEPredictor {
         let cfg = self.clone();
-        let comp = self.comp.iter().map(|c| c.clone().build()).collect();
+        let comp = self.comp.iter().map(|c| c.clone().build())
+            .collect::<Vec<TAGEComponent>>();
         let base = self.base.build();
-        TAGEPredictor {
-            cfg: cfg,
-            base,
-            comp,
+        let stat = TAGEStats::new(comp.len());
+        TAGEPredictor { cfg, base, comp, stat, 
+            reset_ctr: 0,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct TAGEStats {
+    pub alcs: usize,
+    pub failed_alcs: usize,
+    pub base_miss: usize,
+    pub comp_miss: Vec<usize>,
+    pub resets: usize,
+}
+impl TAGEStats {
+    pub fn new(num_comp: usize) -> Self { 
+        Self {
+            alcs: 0,
+            failed_alcs: 0,
+            base_miss: 0,
+            comp_miss: vec![0; num_comp],
+            resets: 0,
         }
     }
 }
@@ -105,16 +130,21 @@ impl TAGEConfig {
 
 /// The "TAgged GEometric history length" predictor. 
 ///
-/// See "A case for (partially) TAgged GEometric history length branch 
-/// prediction" (Seznec, 2006).
+/// See the following: 
+///  - "A case for (partially) TAgged GEometric history length branch prediction" 
+///  (Seznec, 2006).
 pub struct TAGEPredictor { 
     pub cfg: TAGEConfig,
+
+    pub stat: TAGEStats,
 
     /// Base component
     pub base: TAGEBaseComponent,
 
     /// Tagged components
     pub comp: Vec<TAGEComponent>,
+
+    pub reset_ctr: u8,
 }
 impl TAGEPredictor {
 
@@ -182,15 +212,17 @@ impl TAGEPredictor {
         // Update the entry in the component that provided the prediction
         match prediction.provider {
             TAGEProvider::Base => {
+                self.stat.base_miss += 1;
                 let index = self.base.get_index(input.clone());
                 let entry = self.base.get_entry_mut(index);
                 entry.update(outcome);
             },
             TAGEProvider::Tagged(idx) => {
+                self.stat.comp_miss[idx] += 1;
                 let index = self.comp[idx].get_index(input.clone());
                 let entry = self.comp[idx].get_entry_mut(index);
                 entry.ctr.update(outcome);
-                entry.decrement_useful();
+                //entry.decrement_useful();
             },
         }
 
@@ -203,9 +235,13 @@ impl TAGEPredictor {
             new_entry.tag = Some(new_tag);
             new_entry.useful = 0;
             new_entry.ctr.set_direction(outcome);
+            self.stat.alcs += 1;
+            self.reset_ctr = self.reset_ctr.saturating_add(1);
         } 
         // Otherwise, use some strategy to age all of the entries
         else { 
+            self.stat.failed_alcs += 1;
+            self.reset_ctr = self.reset_ctr.saturating_sub(1);
         }
 
     }
@@ -223,10 +259,16 @@ impl TAGEPredictor {
                 let entry = self.base.get_entry_mut(index);
                 entry.update(outcome);
             },
+
+            // Increment when the alternate prediction is incorrect
             TAGEProvider::Tagged(idx) => {
                 let index = self.comp[idx].get_index(input.clone());
                 let entry = self.comp[idx].get_entry_mut(index);
-                entry.increment_useful();
+
+                if prediction.alt_outcome != outcome {
+                    entry.increment_useful();
+                }
+
                 entry.ctr.update(outcome);
             },
         }
@@ -325,6 +367,15 @@ impl TAGEPredictor {
         } else {
             self.update_correct(input.clone(), prediction, outcome);
         }
+
+        if self.reset_ctr == u8::MAX {
+            self.reset_ctr = 0;
+            self.stat.resets += 1;
+            for comp in self.comp.iter_mut() {
+                comp.reset_useful_bits();
+            }
+        }
+
     }
 
     /// Given some reference to a [HistoryRegister], update the state

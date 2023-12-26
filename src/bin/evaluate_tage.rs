@@ -65,8 +65,8 @@ fn build_tage() -> TAGEPredictor {
     let mut tage_cfg = TAGEConfig::new(
         TAGEBaseConfig { 
             ctr: SaturatingCounterConfig {
-                max_t_state: 1,
-                max_n_state: 1,
+                max_t_state: 2,
+                max_n_state: 2,
                 default_state: Outcome::N,
             },
             size: 1 << 12,
@@ -80,6 +80,7 @@ fn build_tage() -> TAGEPredictor {
                 size: 1 << 12,
                 ghr_range: 0..=*ghr_range_hi,
                 tag_bits: 8,
+                useful_bits: 1,
                 ctr: SaturatingCounterConfig {
                     max_t_state: 1,
                     max_n_state: 1,
@@ -89,6 +90,9 @@ fn build_tage() -> TAGEPredictor {
                 tag_strat: TagStrategy::FromPc(tage_compute_tag),
         });
     }
+
+    //println!("[*] {:#?}", tage_cfg);
+    println!("[*] TAGE entries (in total): {}", tage_cfg.total_entries());
 
     let storage_bits  = tage_cfg.storage_bits();
     let storage_kib = storage_bits as f64 / 1024.0 / 8.0;
@@ -160,6 +164,7 @@ fn main() {
                 }
 
                 let stat = stats.get_mut(record.pc);
+                stat.pat.push(record.outcome.into());
 
                 let inputs = TAGEInputs { 
                     pc: record.pc,
@@ -185,6 +190,7 @@ fn main() {
     }
     let done = start.elapsed();
     println!("[*] Completed in {:.3?}", done);
+    println!("[*] {:#?}", tage.stat);
 
     let hit_rate = hits as f64 / brns as f64; 
     let avg_mpkb = mpkb_cnts.iter().sum::<usize>() / mpkb_cnts.len();
@@ -203,8 +209,16 @@ fn main() {
             x.1.hit_rate().partial_cmp(&y.1.hit_rate()).unwrap()
         })
     {
-        println!("{:016x}: {:6}/{:6} ({:.4})", 
-            pc, s.hits, s.occ, s.hit_rate());
+
+        let pat = if s.pat.len() > 64 {
+            let slice = &s.pat.as_bitslice()[0..64];
+            format!("  {:b}", slice)
+        } else {
+            format!("  {:b}", s.pat)
+        };
+        println!("{:016x}: {:6}/{:6} ({:.4}) {}",
+            pc, s.hits, s.occ, s.hit_rate(), pat);
+
     }
 }
 

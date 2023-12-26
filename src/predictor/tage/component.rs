@@ -77,13 +77,14 @@ impl PredictorTable for TAGEBaseComponent {
 #[derive(Clone, Debug)]
 pub struct TAGEEntry {
     pub ctr: SaturatingCounter,
+    pub useful_bits: usize,
     pub useful: u8,
     pub tag: Option<usize>,
     pub updates: usize,
 }
 impl TAGEEntry { 
-    pub fn new(ctr: SaturatingCounter) -> Self { 
-        Self { ctr, useful: 0, tag: None, updates: 0 }
+    pub fn new(ctr: SaturatingCounter, useful_bits: usize) -> Self { 
+        Self { ctr, useful_bits, useful: 0, tag: None, updates: 0 }
     }
 
     /// Get the current predicted outcome.
@@ -109,12 +110,12 @@ impl TAGEEntry {
 
     /// Increment the 'useful' counter.
     pub fn increment_useful(&mut self) {
-        self.useful = (self.useful + 1).clamp(0, 0b11);
+        self.useful = (self.useful + 1).clamp(0, (1 << self.useful_bits) - 1);
     }
 
     /// Decrement the 'useful' counter.
     pub fn decrement_useful(&mut self) {
-        self.useful = (self.useful - 1).clamp(0, 0b11);
+        self.useful = (self.useful - 1).clamp(0, (1 << self.useful_bits) - 1);
     }
 
     /// Invalidate this entry.
@@ -136,6 +137,8 @@ pub struct TAGEComponentConfig {
     /// Number of tag bits
     pub tag_bits: usize,
 
+    pub useful_bits: usize,
+
     /// Strategy for indexing into the table
     pub index_strat: IndexStrategy<TAGEComponent>,
 
@@ -147,7 +150,12 @@ pub struct TAGEComponentConfig {
 }
 impl TAGEComponentConfig {
     pub fn storage_bits(&self) -> usize { 
-        (self.ctr.storage_bits() + self.tag_bits.ilog2() as usize) * self.size
+        let entry_size = (
+            self.ctr.storage_bits() +
+            self.useful_bits +
+            self.tag_bits
+        );
+        entry_size * self.size
     }
 
     pub fn build(self) -> TAGEComponent {
@@ -156,7 +164,7 @@ impl TAGEComponentConfig {
             self.size.ilog2() as usize,
             self.ghr_range.clone()
         );
-        let entry = TAGEEntry::new(self.ctr.build());
+        let entry = TAGEEntry::new(self.ctr.build(), self.useful_bits);
         let data = vec![entry; self.size];
 
         TAGEComponent {
@@ -176,6 +184,14 @@ pub struct TAGEComponent {
     /// Folded global history
     pub csr: FoldedHistoryRegister,
 }
+impl TAGEComponent {
+    pub fn reset_useful_bits(&mut self) {
+        for entry in self.data.iter_mut() {
+            entry.useful = 0;
+        }
+    }
+}
+
 impl PredictorTable for TAGEComponent {
     type Input<'a> = TAGEInputs<'a>;
     type Index = usize;

@@ -29,6 +29,7 @@ pub enum IndexStrategy<T> {
     FromPhr(PhrIndexFn<T>),
 }
 
+
 /// A user-provided strategy for generating a tag associated with some 
 /// entry in an object implementing [PredictorTable].
 #[derive(Clone, Copy, Debug)]
