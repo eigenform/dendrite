@@ -133,6 +133,7 @@ pub struct TAGEComponent {
     pub csr: FoldedHistoryRegister,
 }
 impl TAGEComponent {
+
     pub fn num_useful_entries(&self) -> usize { 
         self.data.iter().filter(|e| e.useful != 0).count()
     }

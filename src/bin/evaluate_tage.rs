@@ -191,16 +191,16 @@ fn main() {
     println!("[*] Completed in {:.3?}", done);
     println!("[*] {:#?}", tage.stat);
 
+    println!("[*] Unique branches: {}", stats.num_unique_branches());
     let hit_rate = hits as f64 / brns as f64; 
+    println!("[*] Global hit rate: {}/{} ({:.2}% correct) ({} misses)", 
+        hits, brns, hit_rate*100.0, brns - hits);
     let avg_mpkb = mpkb_cnts.iter().sum::<usize>() / mpkb_cnts.len();
-    println!("[*] Unique branches: {}", stats.num_branches());
-    println!("[*] Global hit rate: {}/{} ({:.2}%)", 
-        hits, brns, hit_rate*100.0);
     println!("[*] Average MPKB:    {}/1000 ({:.4})", 
         avg_mpkb, avg_mpkb as f64 / 1000.0);
 
     for (idx, comp) in tage.comp.iter().enumerate() {
-        println!("[*] Tagged component {} (GHR[{:03?}]): {:.2}% utilization", 
+        println!("[*] Component[{}] (GHR[{:03?}]): {:.2}% utilization", 
             idx, comp.cfg.ghr_range, comp.utilization());
     }
 
