@@ -1,5 +1,6 @@
 
 use dendrite::*;
+use dendrite::stats::*;
 use itertools::*;
 use std::env;
 use std::time::Instant;

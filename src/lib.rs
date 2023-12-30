@@ -6,6 +6,7 @@
 pub mod history;
 pub mod predictor;
 pub mod trace;
+pub mod stats;
 pub mod branch;
 
 pub use branch::*;

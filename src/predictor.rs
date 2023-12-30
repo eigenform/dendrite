@@ -1,4 +1,5 @@
 
+pub mod simple;
 pub mod tage;
 pub mod counter; 
 pub mod perceptron;
@@ -10,6 +11,7 @@ pub use tage::*;
 pub use btb::*;
 
 use crate::history::*;
+use crate::Outcome;
 
 
 /// Some hash function used to create an index from a program counter value. 
@@ -36,6 +38,13 @@ pub enum IndexStrategy<T> {
 pub enum TagStrategy<T> {
     FromPc(PcIndexFn<T>),
 }
+
+/// Interface to a "trivial" predictor that simply guesses an outcome. 
+pub trait SimplePredictor {
+    fn name(&self) -> &'static str;
+    fn predict(&self) -> Outcome;
+}
+
 
 /// Interface to a table of predictors. 
 pub trait PredictorTable { 
