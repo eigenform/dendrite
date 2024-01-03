@@ -1,6 +1,7 @@
 
 pub mod simple;
 pub mod tage;
+pub mod pht;
 pub mod counter; 
 pub mod perceptron;
 pub mod btb; 

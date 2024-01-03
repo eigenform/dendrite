@@ -103,6 +103,10 @@ fn build_tage() -> TAGEPredictor {
     tage_cfg.build()
 }
 
+fn test_tage() {
+}
+
+
 fn main() {
 
     let args: Vec<String> = env::args().collect();
@@ -111,7 +115,7 @@ fn main() {
         return;
     }
 
-    let trace = BinaryTrace::from_file(&args[1]);
+    let trace = BinaryTrace::from_file(&args[1], "");
     let trace_records = trace.as_slice();
     println!("[*] Loaded {} records from {}", trace.num_entries(), args[1]);
 

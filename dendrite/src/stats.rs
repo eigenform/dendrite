@@ -3,6 +3,7 @@
 use std::collections::*;
 use crate::branch::*;
 use bitvec::prelude::*;
+use itertools::*;
 
 /// Container for recording simple statistics while evaluating some model.
 pub struct BranchStats {
@@ -71,6 +72,35 @@ impl BranchStats {
     pub fn num_unique_branches(&self) -> usize {
         self.data.len()
     }
+
+    pub fn get_common_branches(&self, n: usize) -> Vec<(usize, &BranchData)> {
+        let iter = self.data.iter()
+            .sorted_by(|x, y| { x.1.occ.partial_cmp(&y.1.occ).unwrap() })
+            .rev()
+            .take(n);
+        let res: Vec<(usize, &BranchData)> = iter.map(|(pc, s)| (*pc, s))
+            .collect();
+        res
+    }
+
+    pub fn get_low_rate_branches(&self, n: usize) 
+        -> Vec<(usize, &BranchData)> 
+    {
+        let iter = self.data.iter()
+            .filter(|(_, s)| {
+                s.occ > 100 && s.hit_rate() <= 0.55
+            })
+            //.sorted_by(|x, y| { 
+            //    x.1.hit_rate().partial_cmp(&y.1.hit_rate()).unwrap()
+            //})
+            .sorted_by(|x, y| { x.1.occ.partial_cmp(&y.1.occ).unwrap() })
+            .rev()
+            .take(n);
+        let res: Vec<(usize, &BranchData)> = iter.map(|(pc, s)| (*pc,s))
+            .collect();
+        res
+    }
+
 }
 
 /// Container for per-branch statistics.

@@ -4,7 +4,7 @@ use bitvec::prelude::*;
 
 /// A branch outcome. 
 #[repr(u32)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Outcome { N = 0, T = 1 }
 impl std::ops::Not for Outcome { 
     type Output = Self;
@@ -37,7 +37,7 @@ impl Into<bool> for Outcome {
 /// NOTE: This enum is kept in-sync *manually* with headers in the DynamoRIO
 /// client (see `./dynamorio/src/dendrite.h`).
 #[repr(u32)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BranchKind {
     Invalid      = 0x00,
 
@@ -66,7 +66,7 @@ pub enum BranchKind {
 /// NOTE: The layout of this struct is kept in-sync *manually* with headers
 /// in the DynamoRIO client (see `./dynamorio/src/dendrite.h`).
 #[repr(C)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BranchRecord { 
     /// The program counter value for this branch
     pub pc: usize,

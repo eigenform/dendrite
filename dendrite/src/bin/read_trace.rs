@@ -11,7 +11,7 @@ fn main() {
         return;
     }
 
-    let trace = BinaryTrace::from_file(&args[1]);
+    let trace = BinaryTrace::from_file(&args[1], "");
     let trace_records = trace.as_slice();
     println!("[*] Loaded {} records from {}", trace.num_entries(), args[1]);
     for record in trace_records {

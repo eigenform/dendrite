@@ -11,7 +11,7 @@ fn run_test(records: &[BranchRecord], p: impl SimplePredictor) {
         stat.update_global(record, p.predict());
     }
 
-    println!("[*] {:20} Global hit rate: {}/{} ({:.2}% correct) ({} misses)", 
+    println!("  {:20} Global hit rate: {}/{} ({:.2}% correct) ({} misses)", 
         p.name(),
         stat.global_hits(), 
         stat.global_brns(), 
@@ -26,10 +26,15 @@ fn main() {
         println!("usage: {} <trace file>", args[0]);
         return;
     }
-    let trace = BinaryTrace::from_file(&args[1]);
-    let trace_records = trace.as_slice();
-    run_test(trace_records, simple::RandomPredictor);
-    run_test(trace_records, simple::TakenPredictor);
-    run_test(trace_records, simple::NotTakenPredictor);
+    let traces = BinaryTraceSet::new_from_slice(&args[1..]);
+
+    for trace in traces {
+        if trace.num_entries() < 100 { continue; }
+        println!("[*] {}", trace.name());
+        let records = trace.as_slice();
+        run_test(records, simple::RandomPredictor);
+        //run_test(records, simple::TakenPredictor);
+        //run_test(records, simple::NotTakenPredictor);
+    }
 
 }
