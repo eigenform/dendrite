@@ -1,6 +1,7 @@
 
 pub mod simple;
 pub mod tage;
+pub mod gshare; 
 pub mod pht;
 pub mod counter; 
 pub mod perceptron;
@@ -23,9 +24,10 @@ pub type PcIndexFn<T> = fn(&T, pc: usize) -> usize;
 pub type PhrIndexFn<T> = 
     fn(&T, pc: usize, phr: &HistoryRegister) -> usize;
 
-/// A user-provided strategy for indexing into some object implementing 
-/// [PredictorTable].
-///
+
+
+/// A user-provided strategy for indexing into some object (where `T` is 
+/// supposed to be some type implementing [PredictorTable]).
 #[derive(Clone, Copy, Debug)]
 pub enum IndexStrategy<T> {
     FromPc(PcIndexFn<T>),

@@ -13,5 +13,6 @@ pub use branch::*;
 pub use trace::*;
 pub use history::*;
 pub use predictor::*;
+pub use stats::*;
 
 

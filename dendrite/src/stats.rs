@@ -73,6 +73,28 @@ impl BranchStats {
         self.data.len()
     }
 
+    /// Returns the number of branches that only occur once.
+    pub fn num_single_occurence(&self) -> usize { 
+        self.data.iter()
+            .filter(|(pc, entry)| entry.pat.len() == 1)
+            .count()
+    }
+
+    /// Returns the number of branches that are always taken
+    pub fn num_always_taken(&self) -> usize {
+        self.data.iter()
+            .filter(|(pc, entry)| { entry.pat.iter().all(|o| *o == true) })
+            .count()
+    }
+
+    /// Returns the number of branches that are never taken
+    pub fn num_never_taken(&self) -> usize { 
+        self.data.iter()
+            .filter(|(pc, entry)| { entry.pat.iter().all(|o| *o == false) })
+            .count()
+    }
+
+
     pub fn get_common_branches(&self, n: usize) -> Vec<(usize, &BranchData)> {
         let iter = self.data.iter()
             .sorted_by(|x, y| { x.1.occ.partial_cmp(&y.1.occ).unwrap() })
@@ -127,6 +149,19 @@ impl BranchData {
     pub fn hit_rate(&self) -> f64 {
         self.hits as f64 / self.occ as f64
     }
+
+    pub fn is_always_taken(&self) -> bool {
+        self.pat.count_ones() == self.pat.len()
+    }
+
+    pub fn is_never_taken(&self) -> bool {
+        self.pat.count_zeros() == self.pat.len()
+    }
+
+    pub fn times_taken(&self) -> usize { 
+        self.pat.count_ones()
+    }
+
 
     // NOTE: Remember that this isn't too useful apart from telling you
     // whether some sequence of outcomes is mixed or uniform.

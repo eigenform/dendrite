@@ -4,7 +4,7 @@ use bitvec::prelude::*;
 
 /// A branch outcome. 
 #[repr(u32)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Outcome { N = 0, T = 1 }
 impl std::ops::Not for Outcome { 
     type Output = Self;
