@@ -1,3 +1,4 @@
+/// Evaluate a [`SimplePHT`] against one or more traces. 
 
 use dendrite::*;
 use dendrite::stats::*;
@@ -39,7 +40,7 @@ fn test_pht(pht_size: usize, records: &[BranchRecord]) -> BranchStats {
 
         // Update per-branch statistics
         let brn_stat = stat.get_mut(record.pc);
-        brn_stat.pat.push(record.outcome.into());
+        brn_stat.outcomes.push(record.outcome);
         brn_stat.occ += 1;
         if hit { 
             brn_stat.hits += 1;
@@ -58,7 +59,7 @@ fn test_pht(pht_size: usize, records: &[BranchRecord]) -> BranchStats {
 fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
-        println!("usage: {} <trace file>", args[0]);
+        println!("usage: {} <trace files>", args[0]);
         return;
     }
 

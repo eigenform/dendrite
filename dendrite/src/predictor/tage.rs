@@ -1,3 +1,4 @@
+//! Implementations of a "Tagged GEometric history length" (TAGE) predictor. 
 
 pub mod component;
 pub mod stat;
@@ -14,7 +15,7 @@ use crate::history::*;
 use crate::Outcome;
 use crate::predictor::*;
 
-/// Container for inputs passed to a [TAGEPredictor] and its components.
+/// Container for inputs passed to a [`TAGEPredictor`] and its components.
 #[derive(Clone)]
 pub struct TAGEInputs<'a> { 
     /// Program counter associated with a predicted branch
@@ -25,7 +26,7 @@ pub struct TAGEInputs<'a> {
 }
 
 
-/// Identifies a particular component in a [TAGEPredictor].
+/// Identifies a particular component in a [`TAGEPredictor`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TAGEProvider { 
     /// The base component
@@ -35,7 +36,7 @@ pub enum TAGEProvider {
     Tagged(usize), 
 }
 
-/// Container for output from [TAGEPredictor::predict], including the 
+/// Container for output from [`TAGEPredictor::predict`], including the 
 /// predicted outcome and other metadata about how the prediction was made.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TAGEPrediction {
@@ -253,7 +254,7 @@ impl TAGEPredictor {
 
 }
 
-/// The public interface to a [TAGEPredictor].
+/// The public interface to a [`TAGEPredictor`].
 impl TAGEPredictor {
     /// Return the number of tagged components.
     pub fn num_tagged_components(&self) -> usize { 
@@ -332,7 +333,7 @@ impl TAGEPredictor {
         self.stat.clk += 1;
     }
 
-    /// Given some reference to a [HistoryRegister], update the state
+    /// Given some reference to a [`HistoryRegister`], update the state
     /// of the folded history register in each tagged component. 
     pub fn update_history(&mut self, ghr: &HistoryRegister) {
         for comp in self.comp.iter_mut() {

@@ -1,3 +1,4 @@
+//! Branch target buffer (BTB) implementations.
 
 use crate::predictor::*;
 use crate::branch::*;

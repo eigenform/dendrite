@@ -2,7 +2,7 @@
 use crate::predictor::*;
 use std::ops::RangeInclusive;
 
-/// Configuration for a [TAGEBaseComponent].
+/// Configuration for a [`TAGEBaseComponent`].
 #[derive(Clone, Debug)]
 pub struct TAGEBaseConfig {
     /// Parameters for the saturating counters
@@ -20,7 +20,7 @@ impl TAGEBaseConfig {
         self.ctr.storage_bits() * self.size
     }
 
-    /// Use this configuration to create a new [TAGEBaseComponent].
+    /// Use this configuration to create a new [`TAGEBaseComponent`].
     pub fn build(self) -> TAGEBaseComponent {
         assert!(self.size.is_power_of_two());
         TAGEBaseComponent {
@@ -30,7 +30,7 @@ impl TAGEBaseConfig {
     }
 }
 
-/// Configuration for a [TAGEComponent].
+/// Configuration for a [`TAGEComponent`].
 #[derive(Clone, Debug)]
 pub struct TAGEComponentConfig {
     /// Number of entries
@@ -65,7 +65,7 @@ impl TAGEComponentConfig {
         entry_size * self.size
     }
 
-    /// Use this configuration to create a new [TAGEComponent].
+    /// Use this configuration to create a new [`TAGEComponent`].
     pub fn build(self) -> TAGEComponent {
         assert!(self.size.is_power_of_two());
         let csr = FoldedHistoryRegister::new(
@@ -84,7 +84,7 @@ impl TAGEComponentConfig {
 }
 
 
-/// Configuration for a [TAGEPredictor].
+/// Configuration for a [`TAGEPredictor`].
 #[derive(Clone, Debug)]
 pub struct TAGEConfig {
     /// Base component configuration
@@ -122,7 +122,7 @@ impl TAGEConfig {
         });
     }
 
-    /// Use this configuration to create a new [TAGEPredictor].
+    /// Use this configuration to create a new [`TAGEPredictor`].
     pub fn build(self) -> TAGEPredictor {
         let cfg = self.clone();
         let comp = self.comp.iter().map(|c| c.clone().build())

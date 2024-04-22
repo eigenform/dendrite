@@ -1,11 +1,34 @@
+//! Types for representing branches and branch outcomes. 
 
 use std::collections::*;
 use bitvec::prelude::*;
 
 /// A branch outcome. 
 #[repr(u32)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Outcome { N = 0, T = 1 }
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Outcome { 
+    /// Not taken
+    N = 0,
+    /// Taken
+    T = 1 
+}
+
+impl Outcome { 
+    pub fn vec_from_bitvec(bits: &BitVec) -> Vec<Self> {
+        bits.iter().map(|b| (*b).into()).collect()
+    }
+}
+
+impl std::fmt::Debug for Outcome {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let s = match self { 
+            Self::T => "t",
+            Self::N => "n",
+        };
+        write!(f, "{}", s)
+    }
+}
+
 impl std::ops::Not for Outcome { 
     type Output = Self;
     fn not(self) -> Self { 

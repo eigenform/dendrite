@@ -1,6 +1,9 @@
+//! Implementation of a saturating counter.
 
 use crate::Outcome;
+use crate::predictor::StatefulPredictor;
 
+/// Configuration for building a [`SaturatingCounter`].
 #[derive(Clone, Copy, Debug)]
 pub struct SaturatingCounterConfig {
     pub max_t_state: u8,
@@ -21,7 +24,7 @@ impl SaturatingCounterConfig {
     }
 }
 
-/// An 'n'-bit saturating counter used to follow the behavior of a branch. 
+/// An N-bit saturating counter used to follow the behavior of a branch. 
 #[derive(Clone, Copy, Debug)]
 pub struct SaturatingCounter {
     cfg: SaturatingCounterConfig,
@@ -58,18 +61,16 @@ impl SaturatingCounter {
     pub fn set_direction(&mut self, outcome: Outcome) {
         self.state = outcome;
     }
+}
 
-    /// Reset the counter.
-    pub fn reset(&mut self) { 
+impl StatefulPredictor for SaturatingCounter { 
+    fn name(&self) -> &'static str { "SaturatingCounter" }
+    fn predict(&self) -> Outcome { self.state }
+    fn reset(&mut self) { 
         self.state = self.cfg.default_state; 
         self.ctr = 0;
     }
-
-    /// Return the current predicted direction.
-    pub fn predict(&self) -> Outcome { self.state }
-
-    /// Update the state of the counter. 
-    pub fn update(&mut self, outcome: Outcome) {
+    fn update(&mut self, outcome: Outcome) {
         let prediction = self.predict();
         if outcome != prediction {
             self.weaken();
@@ -78,6 +79,5 @@ impl SaturatingCounter {
         }
     }
 }
-
 
 

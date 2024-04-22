@@ -1,3 +1,4 @@
+/// Print records from the provided binary trace file. 
 
 use dendrite::*;
 use itertools::*;

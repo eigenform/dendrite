@@ -48,7 +48,7 @@ impl PredictorTable for TAGEBaseComponent {
 }
 
 
-/// An entry in some [TAGEComponent]. 
+/// An entry in some [`TAGEComponent`]. 
 #[derive(Clone, Debug)]
 pub struct TAGEEntry {
     /// Container for debugging and analysis data

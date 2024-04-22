@@ -1,24 +1,13 @@
+//! Types for representing a history of branch outcomes. 
 
 use bitvec::prelude::*;
 use std::ops::{ RangeInclusive };
 
 
+/// Implementation of a "history register" used to capture branch outcomes. 
 pub struct HistoryRegister {
     pub data: BitVec<usize, Lsb0>,
     len: usize,
-}
-
-// NOTE: This *reverses* the all of the bits and presents them in a format 
-// where the leftmost bit is the most-significant (index n) and the rightmost 
-// bit is the least-significant (index 0).
-impl std::fmt::Display for HistoryRegister {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let x: String = self.data.as_bitslice().iter().by_vals()
-            .map(|b| if b { '1' } else { '0' })
-            .rev()
-            .collect();
-        write!(f, "{}", x)
-    }
 }
 
 impl HistoryRegister {
@@ -68,14 +57,28 @@ impl HistoryRegister {
     }
 }
 
+// NOTE: This implementation *reverses* the all of the bits and presents them 
+// in a format where the leftmost bit is the most-significant (index n) and 
+// the rightmost bit is the least-significant (index 0).
+impl std::fmt::Display for HistoryRegister {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let x: String = self.data.as_bitslice().iter().by_vals()
+            .map(|b| if b { '1' } else { '0' })
+            .rev()
+            .collect();
+        write!(f, "{}", x)
+    }
+}
+
+
 /// A circular shift register used to track folded history.
 ///
 /// This folds some global history into 'size' bits, but without the need to
 /// actually read all of the history bits and fold them all together with XOR.
 /// The result should be equivalent to using [HistoryRegister::fold].
 ///
-/// This strategy is supposed to mirror the hardware implementation described 
-/// in "BADGR: A Practical GHR Implementation for TAGE Branch Predictors"
+/// This is supposed to mirror the hardware implementation described in 
+/// "BADGR: A Practical GHR Implementation for TAGE Branch Predictors"
 /// (Schlais and Lipasti, 2016).
 ///
 /// NOTE: I think this is only relevant if you're shifting in a single bit. 

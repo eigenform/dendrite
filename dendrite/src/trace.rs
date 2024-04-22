@@ -1,3 +1,4 @@
+//! Types for parsing and synthesizing branch traces.
 
 pub mod assembler;
 

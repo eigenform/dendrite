@@ -1,6 +1,7 @@
 
 use crate::branch::*;
 
+/// A synthetic trace generated with [`TraceAssembler`].
 pub struct SyntheticTrace { 
     pub data: Vec<BranchRecord>,
 }
@@ -290,7 +291,7 @@ impl TraceAssembler {
     }
 
 
-    /// Unroll this program into a trace.
+    /// Unroll this program into a [`SyntheticTrace`]
     pub fn compile(&mut self, max_iters: usize) -> SyntheticTrace {
         self.rewrite_labels();
 

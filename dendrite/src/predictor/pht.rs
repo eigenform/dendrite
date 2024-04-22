@@ -1,3 +1,4 @@
+//! Implementations of a pattern history table (PHT). 
 
 use crate::Outcome;
 use crate::predictor::*;

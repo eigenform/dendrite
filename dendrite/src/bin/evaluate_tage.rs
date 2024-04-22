@@ -6,7 +6,6 @@ use std::env;
 use std::time::Instant;
 use bitvec::prelude::*;
 
-
 /// Fold a program counter value into 12 bits. 
 ///
 /// NOTE: I get the impression that this is unreasonably effective, but then
@@ -65,8 +64,8 @@ fn build_tage() -> TAGEPredictor {
     let mut tage_cfg = TAGEConfig::new(
         TAGEBaseConfig { 
             ctr: SaturatingCounterConfig {
-                max_t_state: 2,
-                max_n_state: 2,
+                max_t_state: 4,
+                max_n_state: 4,
                 default_state: Outcome::N,
             },
             size: 1 << 12,
@@ -168,7 +167,7 @@ fn main() {
                 }
 
                 let stat = stats.get_mut(record.pc);
-                stat.pat.push(record.outcome.into());
+                stat.outcomes.push(record.outcome);
 
                 let inputs = TAGEInputs { 
                     pc: record.pc,
@@ -218,11 +217,11 @@ fn main() {
         //.sorted_by(|x,y| { x.1.hit_rate().partial_cmp(&y.1.hit_rate()).unwrap() })
         .sorted_by(|x,y| { x.1.occ.partial_cmp(&y.1.occ).unwrap() }).rev();
     for (pc, s) in low_rate_iter {
-        let pat = if s.pat.len() > 64 {
-            let slice = &s.pat.as_bitslice()[0..64];
+        let pat = if s.outcomes.len() > 64 {
+            let slice = &s.outcomes.as_bitslice()[0..64];
             format!("{:b}", slice)
         } else {
-            format!("{:b}", s.pat)
+            format!("{:b}", s.outcomes.as_bitslice())
         };
         println!("    {:016x}: {:6}/{:6} ({:.4}) {}",
             pc, s.hits, s.occ, s.hit_rate(), pat);
