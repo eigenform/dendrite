@@ -24,9 +24,13 @@ This library also includes some [potentially incorrect and/or unfinished]
 implementations of different branch predictors and common components that
 you can use to implement them, ie. 
 
-- Tables, saturating counters, perceptrons
+- Tables, saturating counters, a naive perceptron
 - Trivial predictors (always-taken, never-taken, random, etc)
 - A configurable TAGE ("TAgged GEometric length") predictor
+
+Sometime in the future, this project will also include components for 
+reasoning about target predictors (ie. branch target buffers, return-address
+predictors, indirect predictors, etc). 
 
 ## Binaries
 
