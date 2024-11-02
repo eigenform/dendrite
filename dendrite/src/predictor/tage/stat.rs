@@ -10,6 +10,12 @@ pub struct TAGEStats {
     /// Failed allocations
     pub failed_alcs: usize,
 
+    /// Hits in the base component
+    pub base_hits: usize,
+
+    /// Hits in the tagged components
+    pub comp_hits: Vec<usize>,
+
     /// Misses in the base component
     pub base_miss: usize,
 
@@ -29,6 +35,9 @@ impl TAGEStats {
             failed_alcs: 0,
             base_miss: 0,
             comp_miss: vec![0; num_comp],
+            base_hits: 0,
+            comp_hits: vec![0; num_comp],
+
             resets: 0,
             clk: 0,
         }

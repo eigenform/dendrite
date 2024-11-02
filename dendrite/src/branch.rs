@@ -38,6 +38,7 @@ impl std::ops::Not for Outcome {
         }
     }
 }
+
 impl From<bool> for Outcome {
     fn from(x: bool) -> Self { 
         match x { 
@@ -62,7 +63,7 @@ impl Into<bool> for Outcome {
 #[repr(u32)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BranchKind {
-    Invalid      = 0x00,
+    //Invalid      = 0x00,
 
     /// A direct conditional branch instruction.
     DirectBranch = 0x10,
@@ -104,14 +105,54 @@ pub struct BranchRecord {
     pub kind: BranchKind,
 }
 impl BranchRecord {
-    /// Returns 'true' if this is a conditional branch.
+    /// Returns 'true' if this is a conditional instruction.
     pub fn is_conditional(&self) -> bool { 
-        matches!(self.kind, BranchKind::DirectBranch)
+        self.kind == BranchKind::DirectBranch
     }
 
-    /// Returns 'true' if this is an unconditional branch.
+    /// Returns 'true' if this is an unconditional instruction.
     pub fn is_unconditional(&self) -> bool { 
-        matches!(self.kind, BranchKind::DirectBranch)
+        self.kind != BranchKind::DirectBranch
+    }
+
+    /// Returns 'true' if this instruction directly specifies the target. 
+    pub fn is_direct(&self) -> bool { 
+        match self.kind {
+            BranchKind::DirectBranch |
+            BranchKind::DirectJump |
+            BranchKind::DirectCall => true,
+            _ => false,
+        }
+    }
+
+    /// Returns 'true' if this instruction indirectly specifies the target. 
+    pub fn is_indirect(&self) -> bool { 
+        match self.kind {
+            BranchKind::IndirectJump |
+            BranchKind::IndirectCall |
+            BranchKind::Return => true,
+            _ => false,
+        }
+    }
+
+    /// Returns 'true' if this is a "jump" instruction. 
+    pub fn is_jump(&self) -> bool { 
+        match self.kind { 
+            BranchKind::DirectJump |
+            BranchKind::IndirectJump => true,
+            _ => false,
+
+        }
+    }
+
+    /// Returns 'true' if this is a "call" or "return". 
+    pub fn is_procedural(&self) -> bool { 
+        match self.kind {
+            BranchKind::DirectCall | 
+            BranchKind::IndirectCall | 
+            BranchKind::Return => true,
+            _ => false,
+        }
     }
 }
 

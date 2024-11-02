@@ -13,15 +13,15 @@ pub struct TAGEBaseConfig {
 
     /// Strategy for indexing into the table.
     pub index_strat: IndexStrategy<TAGEBaseComponent>,
+
 }
-impl TAGEBaseConfig {
-    /// Get the [approximate] number of storage bits. 
-    pub fn storage_bits(&self) -> usize { 
+impl PredictorConfiguration for TAGEBaseConfig {
+    type Predictor = TAGEBaseComponent;
+
+    fn storage_bits(&self) -> usize {
         self.ctr.storage_bits() * self.size
     }
-
-    /// Use this configuration to create a new [`TAGEBaseComponent`].
-    pub fn build(self) -> TAGEBaseComponent {
+    fn build(self) -> TAGEBaseComponent {
         assert!(self.size.is_power_of_two());
         TAGEBaseComponent {
             data: vec![self.ctr.build(); self.size],
@@ -54,9 +54,10 @@ pub struct TAGEComponentConfig {
     /// Parameters for the saturating counters
     pub ctr: SaturatingCounterConfig,
 }
-impl TAGEComponentConfig {
-    /// Get the [approximate] number of storage bits. 
-    pub fn storage_bits(&self) -> usize { 
+impl PredictorConfiguration for TAGEComponentConfig {
+    type Predictor = TAGEComponent;
+
+    fn storage_bits(&self) -> usize { 
         let entry_size = (
             self.ctr.storage_bits() +
             self.useful_bits +
@@ -65,8 +66,7 @@ impl TAGEComponentConfig {
         entry_size * self.size
     }
 
-    /// Use this configuration to create a new [`TAGEComponent`].
-    pub fn build(self) -> TAGEComponent {
+    fn build(self) -> TAGEComponent {
         assert!(self.size.is_power_of_two());
         let csr = FoldedHistoryRegister::new(
             self.size.ilog2() as usize,
@@ -75,11 +75,7 @@ impl TAGEComponentConfig {
         let entry = TAGEEntry::new(self.ctr.build(), self.useful_bits);
         let data = vec![entry; self.size];
 
-        TAGEComponent {
-            cfg: self,
-            data,
-            csr,
-        }
+        TAGEComponent { cfg: self, data, csr, }
     }
 }
 
@@ -106,12 +102,6 @@ impl TAGEConfig {
         self.base.size + c
     }
 
-    /// Get the [approximate] number of storage bits. 
-    pub fn storage_bits(&self) -> usize { 
-        let c: usize = self.comp.iter().map(|c| c.storage_bits()).sum();
-        c + self.base.storage_bits()
-    }
-
     /// Add a tagged component to the predictor.
     pub fn add_component(&mut self, c: TAGEComponentConfig) {
         self.comp.push(c);
@@ -121,9 +111,17 @@ impl TAGEConfig {
             std::cmp::Ord::cmp(&y_history_len, &x_history_len)
         });
     }
+}
 
-    /// Use this configuration to create a new [`TAGEPredictor`].
-    pub fn build(self) -> TAGEPredictor {
+impl PredictorConfiguration for TAGEConfig {
+    type Predictor = TAGEPredictor; 
+
+    fn storage_bits(&self) -> usize { 
+        let c: usize = self.comp.iter().map(|c| c.storage_bits()).sum();
+        c + self.base.storage_bits()
+    }
+
+    fn build(self) -> TAGEPredictor {
         let cfg = self.clone();
         let comp = self.comp.iter().map(|c| c.clone().build())
             .collect::<Vec<TAGEComponent>>();

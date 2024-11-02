@@ -1,9 +1,8 @@
 
 [DynamoRIO](https://github.com/DynamoRIO/dynamorio) is a library for creating 
-binary instrumentation tools. The client library in this directory can be used 
-to generate traces for evaluating models built with `dendrite`. 
-
-# Usage
+binary instrumentation tools. After installing DynamoRIO, the client library 
+in this directory can be used to generate traces for evaluating models built 
+with `dendrite`.
 
 ```
 # Build the client library 'libdendrite.so'
@@ -14,13 +13,18 @@ $ ./build.sh
 $ /opt/dynamorio/bin64/drrun -c build/libdendrite.so -- ls
 ...
 
-# Trace data is written to a binary file in /tmp
+# The trace data is written to a binary file in /tmp/. 
 $ xxd /tmp/dendrite.ls.04782.0000.bin | less
 ...
 ```
 
-The trace format is flat binary data (see [dendrite.h](./src/dendrite.h)) 
+# Trace Format
+
+For now, traces only record information about control-flow instructions.
+All traces are written to `/tmp/`. 
+
+Traces are flat binary data (see [dendrite.h](./src/dendrite.h)) stored 
 without any sort of compression. Keep in mind that trace files can become 
-*very large*, even for programs that are very short-running without 
+*very large*, even for programs that are very short-running without any
 instrumentation. 
 

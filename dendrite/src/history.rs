@@ -40,6 +40,8 @@ impl HistoryRegister {
     }
 
     /// Fold [with XOR] some slice of bits. 
+    ///
+    /// FIXME: Assumes that chunks fit into a `usize`?  
     pub fn fold(&self, range: RangeInclusive<usize>, output_bits: usize)
         -> usize 
     { 
@@ -112,9 +114,9 @@ impl FoldedHistoryRegister {
     pub fn output_usize(&self) -> usize { self.data.load::<usize>() }
 
     /// Using some [HistoryRegister], update the folded history.
-    pub fn update(&mut self, ghr: &HistoryRegister) {
+    pub fn update(&mut self, input_ghr: &HistoryRegister) {
 
-        let slice = &ghr.data()[self.ghist_range.clone()];
+        let slice = &input_ghr.data()[self.ghist_range.clone()];
         let ghist_size = self.ghist_range.end() - self.ghist_range.start();
 
         let index = ghist_size % self.output_size;

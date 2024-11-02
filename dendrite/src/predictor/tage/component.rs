@@ -19,7 +19,7 @@ impl TAGEBaseComponent {
     }
 }
 impl PredictorTable for TAGEBaseComponent {
-    type Input<'a> = TAGEInputs<'a>;
+    type Input<'a> = TAGEInputs;
     type Index = usize;
     type Entry = SaturatingCounter;
 
@@ -30,9 +30,9 @@ impl PredictorTable for TAGEBaseComponent {
             IndexStrategy::FromPc(func) => { 
                 (func)(self, input.pc)
             },
-            IndexStrategy::FromPhr(func) => { 
-                (func)(self, input.pc, input.phr)
-            },
+            //IndexStrategy::FromPhr(func) => { 
+            //    (func)(self, input.pc, input.phr)
+            //},
         };
         res & self.index_mask()
     }
@@ -155,20 +155,21 @@ impl TAGEComponent {
 }
 
 impl PredictorTable for TAGEComponent {
-    type Input<'a> = TAGEInputs<'a>;
+    type Input<'a> = TAGEInputs;
     type Index = usize;
     type Entry = TAGEEntry;
 
     fn size(&self) -> usize { self.cfg.size }
+
 
     fn get_index(&self, input: TAGEInputs) -> usize { 
         let res = match self.cfg.index_strat {
             IndexStrategy::FromPc(func) => { 
                 (func)(self, input.pc)
             },
-            IndexStrategy::FromPhr(func) => { 
-                (func)(self, input.pc, input.phr)
-            },
+            //IndexStrategy::FromPhr(func) => { 
+            //    (func)(self, input.pc, input.phr)
+            //},
         };
         res & self.index_mask()
     }
@@ -193,7 +194,9 @@ impl PredictorTable for TAGEComponent {
 }
 
 impl <'a> TaggedPredictorTable<'a> for TAGEComponent {
-    fn get_tag(&self, input: TAGEInputs) -> usize { 
+    type Tag<'b> = usize;
+
+    fn get_tag(&self, input: TAGEInputs) -> Self::Tag<'_> { 
         match self.cfg.tag_strat {
             TagStrategy::FromPc(func) => (func)(self, input.pc)
         }

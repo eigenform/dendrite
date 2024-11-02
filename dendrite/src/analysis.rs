@@ -13,6 +13,7 @@ use crate::Outcome;
 use std::collections::*;
 use itertools::*;
 
+
 /// A bitvector storing a set of branch outcomes. 
 pub struct BranchOutcomes {
     pub data: BitVec,
@@ -22,6 +23,7 @@ impl BranchOutcomes {
         Self { data: BitVec::new() }
     }
 
+    /// Return the number of recorded outcomes. 
     pub fn len(&self) -> usize { 
         self.data.len()
     }
@@ -90,9 +92,11 @@ impl BranchOutcomes {
     pub fn into_outcomes(&self) -> Vec<Outcome> {
         Outcome::vec_from_bitvec(&self.data)
     }
+
     pub fn into_runs(&self) -> Vec<Run<Outcome>> {
         Run::new_vec(&self.into_outcomes())
     }
+
     pub fn into_pairs(&self) -> Vec<RunPair<Outcome>> {
         RunPair::vec_from_runs(&self.into_runs())
     }
@@ -136,34 +140,54 @@ impl BranchOutcomes {
         None
     }
 
+    pub fn head_coefficients(&self) -> Vec<usize> {
+        let pairs = self.into_pairs();
+        pairs.iter().map(|p| p.head.count()).collect()
+    }
+    pub fn tail_coefficients(&self) -> Vec<usize> {
+        let pairs = self.into_pairs();
+        pairs.iter().map(|p| p.tail.count()).collect()
+    }
+
+
 
 
 }
 
 /// Simple container for per-branch statistics.
 pub struct BranchData {
-    /// Number of times this branch was encountered.
-    pub occ: usize,
+    /// Record of all observed outcomes for this branch.
+    pub outcomes: BranchOutcomes,
 
     /// Number of correct predictions for this branch.
     pub hits: usize,
-
-    /// Record of all observed outcomes for this branch.
-    pub outcomes: BranchOutcomes,
 }
 
 impl BranchData {
     pub fn new() -> Self {
         Self {
-            occ: 0,
             hits: 0,
             outcomes: BranchOutcomes::new(),
         }
     }
 
+    /// Return the number of all observed outcomes.
+    pub fn len(&self) -> usize { 
+        self.outcomes.len()
+    }
+
+    pub fn push_outcome(&mut self, outcome: impl Into<bool>) {
+        self.outcomes.push(outcome.into());
+    }
+    pub fn record_hit(&mut self) {
+        self.hits += 1;
+    }
+
+
+
     /// Return the hit rate for this branch.
     pub fn hit_rate(&self) -> f64 {
-        self.hits as f64 / self.occ as f64
+        self.hits as f64 / self.outcomes.len() as f64
     }
 
     fn has_uniform_runs(pairs: &[RunPair<Outcome>]) 
@@ -184,14 +208,65 @@ impl BranchData {
         None
     }
 
+    /// Print some useful information for diagnosing the behavior of a branch.
+    pub fn dump_info(&self) {
+        let pairs = self.outcomes.into_pairs();
+
+        // Identify unique pairs and count the number of occurences.
+        let mut dict: HashMap<RunPair<Outcome>, usize> = HashMap::new();
+        for p in pairs.iter() {
+            if let Some(occ) = dict.get_mut(&p) {
+                *occ += 1;
+            } else {
+                dict.insert(p.clone(), 1);
+            }
+        }
+
+        // Collect the lengths of all head/tail runs. 
+        let head_coeff = self.outcomes.head_coefficients();
+        let tail_coeff = self.outcomes.tail_coefficients();
+
+        // All pairs have a fixed-length "head" or tail run. 
+        let fixed_head_coeff = head_coeff.iter().all(|x| *x == head_coeff[0]);
+        let fixed_tail_coeff = tail_coeff.iter().all(|x| *x == tail_coeff[0]);
+
+        // NOTE: This implies that a pattern perfectly divides the behavior
+        if fixed_head_coeff && fixed_tail_coeff { 
+        }
+
+        // All pairs are biased
+        let head_biased = pairs.iter().all(|p| {
+            p.head.count() > p.tail.count()
+        });
+        let tail_biased = pairs.iter().all(|p| {
+            p.tail.count() > p.head.count()
+        });
+
+        println!("[*] fixed head:   {}", fixed_head_coeff);
+        println!("[*] fixed tail:   {}", fixed_tail_coeff);
+        println!("[*] head-biased:  {}", head_biased);
+        println!("[*] tail-biased:  {}", tail_biased);
+        println!("[*] unique pairs: {}", dict.len());
+
+
+    }
+
     /// Classify this branch using the observed outcomes. 
     pub fn classify(&self) -> BranchClass {
+
         // The outcome is always the same
         if let Some(outcome) = self.outcomes.is_static() {
             return BranchClass::Static(outcome);
         }
 
+        // Decompose outcomes into *pairs of runs*.
         let pairs = self.outcomes.into_pairs();
+
+        if pairs.len() == 1 {
+            return BranchClass::SinglePair(pairs[0].clone());
+        }
+
+
         if let Some(pattern) = Self::has_uniform_runs(&pairs) {
             return BranchClass::UniformPattern(pattern);
         }

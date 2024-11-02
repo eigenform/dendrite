@@ -4,20 +4,11 @@ use itertools::*;
 use std::env;
 use std::collections::*;
 
-
-fn main() {
-    let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        println!("usage: {} <trace file>", args[0]);
-        return;
-    }
-
-    let trace = BinaryTrace::from_file(&args[1], "");
+fn analyze_branches(trace: &BinaryTrace) {
     let trace_records = trace.as_slice();
-    println!("[*] Loaded {} records from {}", trace.num_entries(), args[1]);
 
     // Extract data from all conditional branches
-    let mut stat = BranchStats::new();
+    let mut stat = TraceStats::new();
     for record in trace_records.iter().filter(|r| r.is_conditional()) {
         let entry = stat.get_mut(record.pc);
         entry.outcomes.push(record.outcome);
@@ -25,7 +16,6 @@ fn main() {
     println!("[*] Found {} conditional branches", stat.num_unique_branches());
 
     let mut unk_brns = Vec::new();
-
 
     let mut class_map: HashMap<BranchClass, (usize, usize)> = HashMap::new();
     for (pc, brn) in stat.data.iter().sorted_by(|x, y| {
@@ -41,7 +31,9 @@ fn main() {
         entry.1 += brn.outcomes.len();
     }
 
-    println!(" {:<12} | {:<12} | {:<}", "Branches", "Outcomes", "Class");
+    println!("[*] Classified branches into {} bins", class_map.len());
+
+    println!(" {:<12} | {:<12} | {:<}", "Branches", "Outcomes", "Classification");
     println!("--------------+--------------+-----------------------");
     for (class, (num_branches, num_outcomes)) in class_map.iter() 
         .sorted_by(|x, y| x.1.partial_cmp(&y.1).unwrap()).rev()
@@ -50,14 +42,18 @@ fn main() {
     }
     println!();
 
-    //for (pc, brn) in unk_brns {
-    //    println!("{:016x}", pc);
-    //    let pairs = brn.outcomes.into_pairs();
-    //    for p in pairs.chunks(8) {
-    //        println!("{:?}", p);
-    //    }
-    //    println!();
-    //}
+    println!("[*] There are {} unclassified branches ", unk_brns.len());
+    for (pc, brn) in unk_brns {
+        let pairs = brn.outcomes.into_pairs();
+        println!("{:016x}: {} pairs", pc, pairs.len());
+        //brn.dump_info();
+        //println!("{:?}", dict);
+
+        //for p in pairs.chunks(8) {
+        //    println!("{:?}", p);
+        //}
+        //println!();
+    }
 
 
     //let mut behavior_map: HashMap<BranchClass, (usize, usize)> 
@@ -85,5 +81,20 @@ fn main() {
     //    println!("{:12} | {:12} | {:?}", uniqs, brns, behavior);
     //}
 
+
+
+}
+
+
+fn main() {
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {
+        println!("usage: {} <trace file>", args[0]);
+        return;
+    }
+
+    let trace = BinaryTrace::from_file(&args[1], "");
+    println!("[*] Loaded {} records from '{}'", trace.as_slice().len(), args[1]);
+    analyze_branches(&trace);
 }
 

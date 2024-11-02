@@ -16,11 +16,13 @@ pub struct SimplePHT {
     size: usize,
 
     /// Index function
-    index_fn: PcIndexFn<Self>,
+    index_fn: fn(&Self, pc: usize) -> usize,
 }
 impl SimplePHT {
-    pub fn new(size: usize, index_fn: PcIndexFn<Self>,
-        cfg: SaturatingCounterConfig) -> Self
+    pub fn new(size: usize, 
+        index_fn: fn(&Self, pc: usize) -> usize,
+        cfg: SaturatingCounterConfig
+    ) -> Self
     { 
         let data = vec![cfg.build(); size];
         Self { 

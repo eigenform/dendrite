@@ -8,17 +8,17 @@ use crate::branch::*;
 use crate::analysis::*;
 
 /// Container for recording simple statistics while iterating over a trace.
-pub struct BranchStats {
+pub struct TraceStats {
     /// Per-branch data (indexed by program counter value)
     pub data: BTreeMap<usize, BranchData>,
 
     /// Number of correct predictions
     pub global_hits: usize,
 
-    /// Number of times any branch instruction was executed
+    /// Number of times any branch instruction was encountered
     pub global_brns: usize,
 }
-impl BranchStats {
+impl TraceStats {
     pub fn new() -> Self {
         Self {
             data: BTreeMap::new(),
@@ -52,11 +52,11 @@ impl BranchStats {
     pub fn update_per_branch(&mut self,
         record: &BranchRecord, outcome: Outcome)
     {
-        let hit = outcome == record.outcome;
         let data = self.get_mut(record.pc);
-        data.occ += 1;
         data.outcomes.push(outcome);
-        if hit { data.hits += 1; }
+        if outcome == record.outcome { 
+            data.hits += 1; 
+        }
     }
 
     /// Returns a reference to data collected for a particular branch.
@@ -103,9 +103,9 @@ impl BranchStats {
     {
         let iter = self.data.iter()
             .filter(|(_, s)| {
-                s.occ > 100 && s.hit_rate() <= 0.55
+                s.len() > 100 && s.hit_rate() <= 0.55
             })
-            .sorted_by(|x, y| { x.1.occ.partial_cmp(&y.1.occ).unwrap() })
+            .sorted_by(|x, y| { x.1.len().partial_cmp(&y.1.len()).unwrap() })
             .rev()
             .take(n);
         let res: Vec<(usize, &BranchData)> = iter.map(|(pc, s)| (*pc,s))

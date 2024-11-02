@@ -3,27 +3,29 @@
 use crate::Outcome;
 use crate::history::*;
 
-/// A function used to create an index from a program counter value. 
-///
-/// Ideally this is some kind of hash function.
-pub type PcIndexFn<T> = fn(&T, pc: usize) -> usize;
+///// A function used to create an index from a program counter value. 
+/////
+///// Ideally this is some kind of hash function.
+//pub type PcIndexFn<T> = fn(&T, pc: usize) -> usize;
 
-/// A function used to create an index from (a) a program counter value, and;
-/// (b) a reference to some [HistoryRegister] used for path history. 
-///
-/// Ideally this is some kind of hash function.
-pub type PhrIndexFn<T> = 
-    fn(&T, pc: usize, phr: &HistoryRegister) -> usize;
+///// A function used to create an index from (a) a program counter value, and;
+///// (b) a reference to some [HistoryRegister] used for path history. 
+/////
+///// Ideally this is some kind of hash function.
+//pub type PhrIndexFn<T> = 
+//    fn(&T, pc: usize, phr: &HistoryRegister) -> usize;
 
-
-pub type GenericIndexFn<T, I, O> = fn(&T, I) -> O;
+///// A function used to create an index from some input.
+//pub type GenericIndexFn<T, I, O> = fn(&T, I) -> O;
+//
+///// A function used to create a tag from some input.
+//pub type GenericTagFn<T, I, O>   = fn(&T, I) -> O;
 
 
 /// A user-provided strategy for indexing into a [PredictorTable]. 
 #[derive(Clone, Copy, Debug)]
 pub enum IndexStrategy<T> {
-    FromPc(PcIndexFn<T>),
-    FromPhr(PhrIndexFn<T>),
+    FromPc(fn(&T, pc: usize) -> usize),
 }
 
 
@@ -31,7 +33,7 @@ pub enum IndexStrategy<T> {
 /// entry in a [PredictorTable].
 #[derive(Clone, Copy, Debug)]
 pub enum TagStrategy<T> {
-    FromPc(PcIndexFn<T>),
+    FromPc(fn(&T, pc: usize) -> usize),
 }
 
 /// Interface to a table of predictors. 
@@ -51,7 +53,7 @@ pub trait PredictorTable: Sized {
     /// Returns the number of entries in the table.
     fn size(&self) -> usize;
 
-    /// Given some input, return the corresponding index into the table. 
+    /// Given some input, generate an index into the table. 
     fn get_index(&self, input: Self::Input<'_>) -> Self::Index;
 
     /// Returns a reference to an entry in the table.
@@ -69,6 +71,13 @@ pub trait PredictorTable: Sized {
 
 /// Interface to a *tagged* table of predictors. 
 pub trait TaggedPredictorTable<'a>: PredictorTable {
+    /// The type of a tag associated with each entry in the table. 
+    type Tag<'b>;
+
+    /// The signature of functions used to generate a tag. 
+    type TagFn<'b> = fn(&Self, Self::Input<'a>) -> Self::Tag<'b>;
+
+    /// Given some input, generate a tag used to match an entry in the table.
     fn get_tag(&self, input: Self::Input<'a>) -> usize;
 }
 

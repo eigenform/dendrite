@@ -23,14 +23,22 @@ impl <T: std::fmt::Debug + Clone + PartialEq + Eq + std::hash::Hash> Run<T> {
         Self { cnt, data }
     }
 
+    /// Return the number of elements in the sequence. 
     pub fn len(&self) -> usize { 
         self.data.len()
     }
 
+    /// Return the number of times this sequence is repeated. 
+    pub fn count(&self) -> usize { 
+        self.cnt
+    }
+
+    /// Return the total number of elements described by this sequence.
     pub fn total_len(&self) -> usize { 
         self.len() * self.cnt
     }
 
+    /// Create a run-length description of the provided slice.
     pub fn new_vec(input: &[T]) -> Vec<Self> {
         let mut res = Vec::new();
         let mut cur = &input[0];
@@ -46,7 +54,6 @@ impl <T: std::fmt::Debug + Clone + PartialEq + Eq + std::hash::Hash> Run<T> {
             }
         }
         res.push(Self::new(cnt, [cur.clone()].to_vec()));
-
         res
     }
 }
@@ -68,8 +75,8 @@ std::fmt::Debug for Run<T>
 pub struct RunPair<T> 
 where T: std::fmt::Debug + Clone + PartialEq + Eq + std::hash::Hash
 {
-    head: Run<T>,
-    tail: Run<T>,
+    pub head: Run<T>,
+    pub tail: Run<T>,
 }
 
 impl <T: std::fmt::Debug + Clone + PartialEq + Eq + std::hash::Hash>
@@ -86,7 +93,6 @@ RunPair<T>
         }
         res
     }
-
 }
 
 impl <T: std::fmt::Debug + Clone + PartialEq + Eq + std::hash::Hash>

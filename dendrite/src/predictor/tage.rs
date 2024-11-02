@@ -17,12 +17,12 @@ use crate::predictor::*;
 
 /// Container for inputs passed to a [`TAGEPredictor`] and its components.
 #[derive(Clone)]
-pub struct TAGEInputs<'a> { 
+pub struct TAGEInputs {
     /// Program counter associated with a predicted branch
     pub pc: usize,
 
-    /// Bits from a path history register
-    pub phr: &'a HistoryRegister,
+    ///// Bits from a path history register
+    //pub phr: &'a HistoryRegister,
 }
 
 
@@ -160,6 +160,8 @@ impl TAGEPredictor {
         // with candidates of increasing history length: given candidates with 
         // history lengths J and K (where J < K), the candidate J is twice as 
         // likely to be chosen over K.
+        //
+        // NOTE: In hardware, this is presumably just an LFSR
         let mut rng = rand::thread_rng();
         let weights: Vec<usize> = candidates.iter().map(|idx| 1 << idx)
             .collect();
@@ -235,6 +237,7 @@ impl TAGEPredictor {
             TAGEProvider::Base => {
                 let index = self.base.get_index(input.clone());
                 let entry = self.base.get_entry_mut(index);
+                self.stat.base_hits += 1;
                 entry.update(outcome);
             },
 
@@ -247,6 +250,7 @@ impl TAGEPredictor {
                     entry.increment_useful();
                 }
 
+                self.stat.comp_hits[idx] += 1;
                 entry.ctr.update(outcome);
             },
         }
@@ -270,12 +274,13 @@ impl TAGEPredictor {
     /// Make a prediction for the provided input. 
     pub fn predict(&self, input: TAGEInputs) -> TAGEPrediction {
 
-        // Access all of the tables
+        // Access the base component and all tagged components 
         let (base_idx, base_entry) = self.get_base_entry(input.clone());
         let tagged_entries = self.get_tagged_entries(input.clone());
 
+        // The base component provides the default predicted outcome 
+        // for cases where we miss in all tagged components
         let default_outcome = base_entry.predict();
-
         let mut result = TAGEPrediction {
             provider: TAGEProvider::Base,
             outcome: default_outcome,
@@ -287,9 +292,8 @@ impl TAGEPredictor {
             alt_tag: 0
         };
 
-        // NOTE: You're iterating through components *backwards* here 
-        // (from the shortest to longest history length).
-        let tagged_iter = tagged_entries.iter().enumerate().rev();
+        // Find the longest-length tagged component that yields a match
+        let tagged_iter = tagged_entries.iter().enumerate();
         for (comp_idx, (entry_idx, entry, tag)) in tagged_iter { 
             if entry.tag_matches(*tag) {
                 result.alt_provider = result.provider;
@@ -301,6 +305,7 @@ impl TAGEPredictor {
                 result.outcome  = entry.predict();
                 result.idx = *entry_idx;
                 result.tag = *tag; 
+                break;
             }
         }
         result

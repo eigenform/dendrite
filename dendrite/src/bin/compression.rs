@@ -209,7 +209,7 @@ fn main() {
     println!("[*] Loaded {} records from {}", trace.num_entries(), args[1]);
 
     // Run through the trace and gather outcomes for all conditional branches
-    let mut stat = BranchStats::new();
+    let mut stat = TraceStats::new();
     for record in trace_records.iter().filter(|r| r.is_conditional()) {
         let entry = stat.get_mut(record.pc);
         entry.outcomes.push(record.outcome);

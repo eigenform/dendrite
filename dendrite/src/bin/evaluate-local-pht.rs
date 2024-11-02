@@ -10,8 +10,8 @@ fn index_direct(pht: &SimplePHT, pc: usize) -> usize {
     pc
 }
 
-fn test_pht(pht_size: usize, records: &[BranchRecord]) -> BranchStats {
-    let mut stat = BranchStats::new();
+fn test_pht(pht_size: usize, records: &[BranchRecord]) -> TraceStats {
+    let mut stat = TraceStats::new();
     let mut pht = SimplePHT::new(
         pht_size, 
         index_direct, 
@@ -41,7 +41,6 @@ fn test_pht(pht_size: usize, records: &[BranchRecord]) -> BranchStats {
         // Update per-branch statistics
         let brn_stat = stat.get_mut(record.pc);
         brn_stat.outcomes.push(record.outcome);
-        brn_stat.occ += 1;
         if hit { 
             brn_stat.hits += 1;
         }
@@ -78,7 +77,7 @@ fn main() {
         println!("Low hit-rate branches:");
         for (pc, data) in stat.get_low_rate_branches(4) {
             println!("  {:016x} {:8}/{:8} {:.4}", 
-                pc, data.hits, data.occ, data.hit_rate()
+                pc, data.hits, data.len(), data.hit_rate()
             );
         }
         println!("  ...");

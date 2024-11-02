@@ -6,7 +6,7 @@ use dendrite::predictor::simple;
 use std::env;
 
 fn run_test(records: &[BranchRecord], p: impl SimplePredictor) {
-    let mut stat = BranchStats::new();
+    let mut stat = TraceStats::new();
 
     for record in records.iter().filter(|r| r.is_conditional()) { 
         stat.update_global(record, p.predict());

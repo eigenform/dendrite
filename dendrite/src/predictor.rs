@@ -42,5 +42,24 @@ pub trait StatefulPredictor {
     fn update(&mut self, outcome: Outcome);
 }
 
+/// Implemented on types that represent some *configuration* for a predictor.
+pub trait PredictorConfiguration {
+    /// The type of object that will be created using this configuration.
+    type Predictor; 
+
+    /// Return the [approximate] number of storage bits used to implement 
+    /// this predictor. 
+    fn storage_bits(&self) -> usize; 
+
+    /// Use this configuration to build an instance of the predictor.
+    fn build(self) -> Self::Predictor;
+}
+
+
+pub enum InputState {
+    ProgramCounter(usize),
+}
+
+
 
 

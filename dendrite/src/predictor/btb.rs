@@ -9,61 +9,26 @@ pub struct SimpleBTBEntry {
     pub tgt: usize,
     /// The type of branch
     pub kind: BranchKind,
-    /// Is this entry valid?
-    pub valid: bool,
-    /// Use the predictor for the associated [BranchKind]
-    pub alt: bool,
 }
 impl SimpleBTBEntry {
-    pub fn new() -> Self { 
-        Self { 
-            tgt: 0, 
-            kind: BranchKind::Invalid, 
-            valid: false,
-            alt: false,
-        }
-    }
-
-    pub fn matches(&self, record: &BranchRecord) -> bool {
-        assert!(record.kind != BranchKind::Invalid);
-        if !self.valid { return false; }
-        if self.kind != record.kind { return false; }
-        match self.kind {
-            BranchKind::Invalid => { return false; },
-            BranchKind::DirectJump |
-            BranchKind::DirectCall |
-            BranchKind::DirectBranch => {
-                if self.tgt != record.tgt {
-                    return false;
-                }
-            },
-            BranchKind::IndirectJump |
-            BranchKind::IndirectCall |
-            BranchKind::Return => {
-            },
-        }
-
-        self.tgt == record.tgt &&
-        self.kind == record.kind &&
-        self.valid
+    pub fn new(tgt: usize, kind: BranchKind) -> Self { 
+        Self { tgt, kind }
     }
 
     pub fn target(&self) -> usize { self.tgt }
     pub fn kind(&self) -> BranchKind { self.kind }
-    pub fn valid(&self) -> bool { self.valid }
-    pub fn alt(&self) -> bool { self.alt }
 }
 
 pub struct SimpleBTB {
     size: usize,
-    data: Vec<SimpleBTBEntry>,
+    data: Vec<Option<SimpleBTBEntry>>,
 }
 impl SimpleBTB {
     pub fn new(size: usize) -> Self {
         assert!(size.is_power_of_two());
         Self { 
             size,
-            data: vec![SimpleBTBEntry::new(); size],
+            data: vec![None; size],
         }
     }
 }
