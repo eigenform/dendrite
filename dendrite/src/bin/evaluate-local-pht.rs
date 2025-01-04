@@ -30,7 +30,7 @@ fn test_pht(pht_size: usize, records: &[BranchRecord]) -> TraceStats {
 
         // Make a prediction
         let prediction = pht_entry.predict();
-        let hit = prediction == record.outcome;
+        let hit = prediction == record.outcome();
 
         // Update global statistics
         stat.global_brns += 1;
@@ -40,13 +40,13 @@ fn test_pht(pht_size: usize, records: &[BranchRecord]) -> TraceStats {
 
         // Update per-branch statistics
         let brn_stat = stat.get_mut(record.pc);
-        brn_stat.outcomes.push(record.outcome);
+        brn_stat.outcomes.push(record.outcome());
         if hit { 
             brn_stat.hits += 1;
         }
 
         // Update the PHT entry according to the outcome
-        pht_entry.update(record.outcome);
+        pht_entry.update(record.outcome());
 
     }
 

@@ -1,4 +1,8 @@
 /target
 /tmp
 /dynamorio/build
+/pin/obj-intel64
+/pin/pin.log
 /traces
+*.o
+*.so

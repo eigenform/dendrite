@@ -314,9 +314,11 @@ impl TraceAssembler {
             let tgt_idx = tgt_loc.get_index();
             let tgt     = self.pcs[tgt_idx];
             let kind    = op.kind();
+            let flags   = BranchFlags::new(kind, outcome);
+            //let ilen    = 0;
             ctr[cur] += 1;
 
-            let record  = BranchRecord { pc, tgt, outcome, kind };
+            let record  = BranchRecord { pc, tgt, flags };
             data.push(record);
 
             // Go to the next instruction

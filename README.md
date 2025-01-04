@@ -1,13 +1,20 @@
 # dendrite
 
 A Rust library with examples and other tools for exploring the accuracy of 
-branch prediction strategies over DynamoRIO traces. 
+branch prediction strategies over traces. 
 
-## Building the DynamoRIO Plugin
+## Building Instrumentation
 
-This project depends on [DynamoRIO](https://github.com/DynamoRIO/dynamorio).
-Program traces are collected by running an x86 executable with a simple plugin.
-See [dynamorio/](./dynamorio) for instructions on how to build the plugin.
+This project depends on using some kind of binary instrumentation to 
+capture traces. Currently, only x86 platforms are supported. 
+
+See [pin/](./pin) for instructions on how to build the `dendrite` plugin for 
+Intel Pin.
+
+> **NOTE**: 
+> See [dynamorio/](./dynamorio) for instructions on how to build the plugin
+  for DynamoRIO (**warning: will be deprecated and replaced by Pin in the near 
+  future**)
 
 ## Building this Project
 
@@ -34,7 +41,7 @@ predictors, indirect predictors, etc).
 
 ## Binaries
 
-[dynamorio/src/bin](./dynamorio/src/bin) contains utilities, examples, and 
+[dendrite/src/bin](./dendrite/src/bin) contains utilities, examples, and 
 other experiments: 
 
 - `read-trace`: Print the contents of a trace file
@@ -44,13 +51,12 @@ other experiments:
 Typical usage looks something like this: 
 
 ```
-# Use `drrun` to write a trace (to the /tmp/ directory)
-$ /opt/dynamorio/bin64/drrun -c build/libdendrite.so -- ls
+# Use Intel Pin to write a trace
+$ /opt/intel-pin/pin -t pin/obj-intel64/dendrite.so -o /tmp/trace.bin -- ls
 ...
 
 # Print the raw entries in the trace
-$ cargo run --release --bin read-trace -- /tmp/dendrite.ls.04782.0000.bin
+$ cargo run --release --bin read-trace -- /tmp/trace.bin
 ...
 ```
-
 

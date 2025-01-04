@@ -1,4 +1,8 @@
 
+> **NOTE**: 
+> **Use of the DynamoRIO library will be deprecated and replaced by the 
+> Intel Pin library in the near future.**
+
 [DynamoRIO](https://github.com/DynamoRIO/dynamorio) is a library for creating 
 binary instrumentation tools. After installing DynamoRIO, the client library 
 in this directory can be used to generate traces for evaluating models built 

@@ -9,98 +9,122 @@ static int tls_log_idx;
 static void 
 hook_conditional_branch(app_pc pc, app_pc tgt, int taken)
 {
+    void *drcontext = dr_get_current_drcontext();
+    uint32_t ilen = 0;
+	uint32_t flags = ILEN_FIELD(ilen) | BRN_FLAG | TAKEN_FIELD(taken);
 	trace_record record = {
 		.pc = (uint64)pc,
 		.tgt = (uint64)tgt,
-		.outcome = (taken == 0 ? 1 : 0),
-		.kind = (uint32_t)COND_BRANCH,
+		.flags = flags,
 	};
 
-    void *drcontext = dr_get_current_drcontext();
     file_t log = (file_t)(ptr_uint_t)drmgr_get_tls_field(drcontext, tls_log_idx);
 	dr_write_file(log, &record, sizeof(trace_record));
 }
 
 static void hook_jump_direct(app_pc pc, app_pc tgt)
 {
-	uint32_t outcome = 1;
+    void *drcontext = dr_get_current_drcontext();
+    uint32_t ilen = 0;
+	uint32_t flags = ILEN_FIELD(ilen) | JMP_FLAG | TAKEN_FLAG;
 	trace_record record = {
 		.pc = (uint64)pc,
 		.tgt = (uint64)tgt,
-		.outcome = 1,
-		.kind = (uint32_t)JMP_DIRECT,
+		.flags = flags,
 	};
 
-    void *drcontext = dr_get_current_drcontext();
     file_t log = (file_t)(ptr_uint_t)drmgr_get_tls_field(drcontext, tls_log_idx);
 	dr_write_file(log, &record, sizeof(trace_record));
 }
 
 static void hook_jump_indirect(app_pc pc, app_pc tgt)
 {
-	uint32_t outcome = 1;
+    void *drcontext = dr_get_current_drcontext();
+    uint32_t ilen = 0;
+	uint32_t flags = ILEN_FIELD(ilen) | JMP_FLAG | IND_FLAG | TAKEN_FLAG;
 	trace_record record = {
 		.pc = (uint64)pc,
 		.tgt = (uint64)tgt,
-		.outcome = 1,
-		.kind = (uint32_t)JMP_INDIRECT,
+		.flags = flags,
 	};
 
-    void *drcontext = dr_get_current_drcontext();
     file_t log = (file_t)(ptr_uint_t)drmgr_get_tls_field(drcontext, tls_log_idx);
 	dr_write_file(log, &record, sizeof(trace_record));
 }
 
 static void hook_ret(app_pc pc, app_pc tgt)
 {
-	uint32_t outcome = 1;
+    void *drcontext = dr_get_current_drcontext();
+    uint32_t ilen = 0;
+	uint32_t flags = ILEN_FIELD(ilen) | RET_FLAG | IND_FLAG | TAKEN_FLAG;
 	trace_record record = {
 		.pc = (uint64)pc,
 		.tgt = (uint64)tgt,
-		.outcome = 1,
-		.kind = (uint32_t)RETURN,
+		.flags = flags,
 	};
 
-    void *drcontext = dr_get_current_drcontext();
     file_t log = (file_t)(ptr_uint_t)drmgr_get_tls_field(drcontext, tls_log_idx);
 	dr_write_file(log, &record, sizeof(trace_record));
 }
 
 static void hook_call_direct(app_pc pc, app_pc tgt)
 {
-	uint32_t outcome = 1;
+    void *drcontext = dr_get_current_drcontext();
+    uint32_t ilen = 0;
+	uint32_t flags = ILEN_FIELD(ilen) | CALL_FLAG | TAKEN_FLAG;
 	trace_record record = {
 		.pc = (uint64)pc,
 		.tgt = (uint64)tgt,
-		.outcome = 1,
-		.kind = (uint32_t)CALL_DIRECT,
+		.flags = flags,
 	};
 
-    void *drcontext = dr_get_current_drcontext();
     file_t log = (file_t)(ptr_uint_t)drmgr_get_tls_field(drcontext, tls_log_idx);
 	dr_write_file(log, &record, sizeof(trace_record));
 }
 
 static void hook_call_indir(app_pc pc, app_pc tgt)
 {
-	uint32_t outcome = 1;
+    void *drcontext = dr_get_current_drcontext();
+    uint32_t ilen = 0;
+	uint32_t flags = ILEN_FIELD(ilen) | CALL_FLAG | IND_FLAG | TAKEN_FLAG;
 	trace_record record = {
 		.pc = (uint64)pc,
 		.tgt = (uint64)tgt,
-		.outcome = 1,
-		.kind = (uint32_t)CALL_INDIRECT,
+		.flags = flags,
 	};
 
-    void *drcontext = dr_get_current_drcontext();
     file_t log = (file_t)(ptr_uint_t)drmgr_get_tls_field(drcontext, tls_log_idx);
 	dr_write_file(log, &record, sizeof(trace_record));
 }
 
 static dr_emit_flags_t
+event_bb_analysis(void *drcontext, void *tag, instrlist_t *bb, bool for_trace,
+		bool translating, void **user_data)
+{
+	// NOTE: 'user_data' is apparently passed to the next stage
+	//// Iterate over all instructions in the block 
+	//for (instr = instrlist_first(bb), num_instrs = 0; instr != NULL; 
+	//		instr = instr_get_next(instr)) 
+	//{
+	//	num_instrs++;
+	//}
+	//*user_data = (void*)instr_lens;
+	return DR_EMIT_DEFAULT; 
+}
+
+// NOTE: This is called for each instruction in a basic block. 
+// Inserts a hook that will capture info about a control-flow instruction.
+static dr_emit_flags_t
 event_app_instruction(void *drcontext, void *tag, instrlist_t *bb, 
 	instr_t *instr, bool for_trace, bool translating, void *user_data)
 {
+	// If this is a control-flow instruction, insert a hook that will record
+	// relevant info about the instruction
 	if (instr_is_cti(instr)) {
+		
+		// NOTE: How do we pass this through to the cleancalls? 
+		int instr_len = instr_length(drcontext, instr);
+
 		// Conditional branch
 		if (instr_is_cbr(instr)) {
 			dr_insert_cbr_instrumentation(drcontext, bb, instr, 
@@ -132,6 +156,7 @@ event_app_instruction(void *drcontext, void *tag, instrlist_t *bb,
 				(void *)hook_jump_indirect, SPILL_SLOT_1);
 		}
 	}
+
     return DR_EMIT_DEFAULT;
 }
 
@@ -171,7 +196,10 @@ DR_EXPORT void dr_client_main(client_id_t id, int argc, const char *argv[])
     dr_register_exit_event(event_exit);
     if (!drmgr_register_thread_init_event(event_thread_init) ||
         !drmgr_register_thread_exit_event(event_thread_exit) ||
-        !drmgr_register_bb_instrumentation_event(NULL, event_app_instruction, NULL))
+        !drmgr_register_bb_instrumentation_event(
+			event_bb_analysis, event_app_instruction, NULL))
+	{
         DR_ASSERT(false);
+	}
 }
 

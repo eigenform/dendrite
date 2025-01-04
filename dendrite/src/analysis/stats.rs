@@ -43,7 +43,7 @@ impl TraceStats {
 
     /// Update global statistics.
     pub fn update_global(&mut self, record: &BranchRecord, outcome: Outcome) {
-        let hit = outcome == record.outcome;
+        let hit = outcome == record.outcome();
         self.global_brns += 1;
         if hit { self.global_hits += 1; }
     }
@@ -54,7 +54,7 @@ impl TraceStats {
     {
         let data = self.get_mut(record.pc);
         data.outcomes.push(outcome);
-        if outcome == record.outcome { 
+        if outcome == record.outcome() { 
             data.hits += 1; 
         }
     }

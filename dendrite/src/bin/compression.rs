@@ -212,7 +212,7 @@ fn main() {
     let mut stat = TraceStats::new();
     for record in trace_records.iter().filter(|r| r.is_conditional()) {
         let entry = stat.get_mut(record.pc);
-        entry.outcomes.push(record.outcome);
+        entry.outcomes.push(record.outcome());
     }
     println!("[*] Found {} conditional branches", stat.num_unique_branches());
 

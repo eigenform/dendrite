@@ -2,22 +2,27 @@
 #include "dr_defines.h"
 #include <stdint.h>
 
-typedef enum _branch_kind {
-	COND_BRANCH   = 0x10,
-	JMP_DIRECT    = 0x20,
-	JMP_INDIRECT  = 0x21,
-	CALL_DIRECT   = 0x40,
-	CALL_INDIRECT = 0x41,
-	RETURN        = 0x81,
-} branch_kind;
+// Branch instruction
+#define BRN_FLAG   (1 << 0)
+// Jump instruction
+#define JMP_FLAG   (1 << 1)
+// Call instruction
+#define CALL_FLAG  (1 << 2)
+// Return instruction
+#define RET_FLAG   (1 << 3)
+// Indirect addressing
+#define IND_FLAG   (1 << 4)
+// Taken outcome
+#define TAKEN_FLAG (1 << 5)
+
+#define TAKEN_FIELD(x) ((x == 0 ? 1 : 0) << 5)
+#define ILEN_FIELD(x) ((x & 0xf) << 28)
 
 typedef struct _trace_record {
 	// Program counter value
 	uint64 pc;
 	// Target address
 	uint64 tgt;
-	// Outcome (taken=1, not-taken=0)
-	uint32_t outcome;
-	// Branch kind
-	uint32_t kind;
+	// Flags
+	uint32_t flags;
 } trace_record;

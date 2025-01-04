@@ -94,7 +94,7 @@ fn main() {
 
     let start = Instant::now();
     for record in trace_records {
-        match record.kind { 
+        match record.kind() { 
             // Record all unconditionally taken branches in the GHR and 
             // propagate updates to the TAGE folded history registers
             BranchKind::DirectJump |
@@ -116,13 +116,13 @@ fn main() {
                 }
 
                 let stat = stats.get_mut(record.pc);
-                stat.outcomes.push(record.outcome);
+                stat.outcomes.push(record.outcome());
 
                 let inputs = TAGEInputs { 
                     pc: record.pc,
                 };
                 let prediction = tage.predict(inputs.clone());
-                if record.outcome == prediction.outcome {
+                if record.outcome() == prediction.outcome {
                     hits += 1;
                     stat.hits += 1;
                 } else { 
@@ -130,13 +130,13 @@ fn main() {
                 }
                 brns += 1;
 
-                tage.update(inputs, prediction, record.outcome);
+                tage.update(inputs, prediction, record.outcome());
 
                 // Update the global history register. 
                 // Use the GHR to update the folded history registers in 
                 // each of the tagged components. 
                 ghr.shift_by(1);
-                ghr.data_mut().set(0, record.outcome.into());
+                ghr.data_mut().set(0, record.outcome().into());
                 tage.update_history(&ghr);
             },
         }
